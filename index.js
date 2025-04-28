@@ -19,7 +19,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
 // Starlink API URLs
-const authUrl = 'https://api.starlink.com/oauth/token'; // URL to get bearer token
+const authUrl = 'https://www.starlink.com/api/auth/connect/token'; // URL to get bearer token
 const activationUrl = 'https://api.starlink.com/v1/activations'; // URL to activate kit
 
 
