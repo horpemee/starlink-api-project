@@ -156,24 +156,28 @@ async function makeAuthedPost(path, body = {}) {
  *   schemas:
  *     AddressCreateRequest:
  *       type: object
- *       required: [street1, city, state, postalCode, countryCode]
+ *       required: [addressLines, city, administrativeAreaCode , postalCode, regionCode, latitude, longitude]
  *       properties:
- *         street1: { type: string, example: "1 Rocket Road" }
+ *         addressLines: { type: string, example: "1 Rocket Road" }
  *         street2: { type: string, nullable: true }
  *         city:    { type: string, example: "Hawthorne" }
- *         state:   { type: string, example: "CA" }
+ *         administrativeAreaCode:   { type: string, example: "CA" }
  *         postalCode: { type: string, example: "90250" }
- *         countryCode: { type: string, example: "US" }
+ *         regionCode: { type: string, example: "US" }
+ *         latitude: { type: double, example: 33.92 }
+ *         longitude: { type: double, example: -118.32 }
+ * 
+ * 
  *     AddressCreateResponse:
  *       type: object
  *       properties:
  *         addressNumber: { type: string, example: "A123456" }
  *     ServiceLineRequest:
  *       type: object
- *       required: [addressNumber, productCode]
+ *       required: [addressReferenceId, productReferenceId]
  *       properties:
- *         addressNumber: { type: string, example: "A123456" }
- *         productCode: { type: string, example: "ENT-FIXED-1TB" }
+ *         addressReferenceId: { type: string, example: "A123456" }
+ *         productReferenceId: { type: string, example: "ENT-FIXED-1TB" }
  *     ServiceLineResponse:
  *       type: object
  *       properties:
@@ -189,10 +193,12 @@ async function makeAuthedPost(path, body = {}) {
  *       allOf:
  *         - $ref: '#/components/schemas/ServiceLineRequest'
  *         - type: object
- *           required: [accountNumber, userTerminalId]
+ *           required: [accountNumber, userTerminalId,  serviceLineNumber]
  *           properties:
  *             accountNumber: { type: string, example: "123456" }
  *             userTerminalId: { type: string, example: "UT-A1B2" }
+ *             serviceLineNumber: { type: string, example: "SL7890" }
+ * 
  *     ActivationResponse:
  *       type: object
  *       properties:
@@ -392,7 +398,7 @@ app.post('/api/accounts/:account/addresses', async (req, res) => {
 
 app.get('/', async (req, res) => {
     
-  res.send({message : 'Starlink Activation Server is running 🚀', token: await getBearerToken()});
+  res.send({message : 'Starlink Activation Server is running 🚀'});
   
 });
 
