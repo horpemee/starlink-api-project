@@ -18,6 +18,8 @@ app.use(bodyParser.urlencoded({ extended: true }));
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
+const mapkey = process.env.GOOGLE_MAP_KEY
+
 // Starlink API URLs
 const authUrl = 'https://www.starlink.com/api/auth/connect/token'; // URL to get bearer token
 const activationUrl = 'https://api.starlink.com/v1/activations'; // URL to activate kit
@@ -63,7 +65,14 @@ async function getBearerToken() {
         throw new Error('Failed to get bearer token');
     }
 }
+ async function reversePlusCode(pluscode){
+  const result =  await axios.get(
+    `https://plus.codes/api?address=${pluscode}&key=${mapkey}`
+  )  
 
+  return result.data
+
+}
 async function makeAuthedGet(path) {
     const token = await getBearerToken();
     const { data } = await axios.get(
@@ -75,6 +84,7 @@ async function makeAuthedGet(path) {
     return data;
   }
 async function makeAuthedPost(path, body = {}) {
+   console.log("[makeAuthedPost] called with ::", path, body)
     const token = await getBearerToken();
     const { data } = await axios.post(
       `${process.env.STARLINK_BASE_URL}${path}`,
@@ -88,40 +98,83 @@ async function makeAuthedPost(path, body = {}) {
 
 
   const API = {
-    createAddress: (acct, payload) => makeAuthedPost(`/v1/account/${acct}/addresses`, payload),
+    createAddress: async (acct, payload) => {
+/*
+administrativeAreaCode
+regionCode
+formattedAddress
+latitude
+longitude
+REF -> 009eae09-031c-4e23-8297-1e8d827f56c6
+SERVICELINENUMBER __> SL-4657821-74968-92
+*/
+/*
+ formattedAddress: { type: string, example: "1 Rocket Road, Hawthorne, CA 90250-6844, US" }
+ *         
+ *         administrativeAreaCode:   { type: string, example: "CA" }
+ *         postalCode: { type: string, example: "90250" }
+ *         regionCode: { type: string, example: "US" }
+ *         googlePlusCode : {type : string, example : "H9XV+MF Lagos"}
+
+*/
+     
+     
+
+     const reversedAddress  = await reversePlusCode(payload.googlePlusCode)
+     
+     console.log("Reversed PlusCode", reversedAddress)
+     if(reversedAddress.status != "OK"){
+         return  { "message" : "Error occurred while creating address", data : reversedAddress}
+     }
+     
+        let newPayload  = {
+            administrativeAreaCode : payload.administrativeAreaCode,
+            regionCode : payload.regionCode,
+            addressLines : [payload.formattedAddress],
+            formattedAddress : payload.formattedAddress,
+            latitude : reversedAddress.plus_code.geometry.bounds.northeast.lat,
+            longitude : reversedAddress.plus_code.geometry.bounds.northeast.lng
+        }
+
+        return makeAuthedPost(`/v1/account/${acct}/addresses`, newPayload)
+    },
     getAvailableProducts: (acct) => makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`),
     createServiceLine: (acct, payload) => makeAuthedPost(`/v1/account/${acct}/service-lines`, payload),
     listUserTerminals: (acct, params = '') => makeAuthedGet(`/v1/account/${acct}/user-terminals${params}`),
+    addUserTerminal : (acct, deviceId) => makeAuthedPost(`v1/account/${acct}/user-terminals/${deviceId}`),
     attachTerminal: (acct, terminalId, serviceLineNumber) =>
       makeAuthedPost(`/v1/account/${acct}/user-terminals/${terminalId}/${serviceLineNumber}`, {})
   };
 
-  async function activateStarlink({ accountNumber, address, productCode, userTerminalId }) {
+
+  async function activateStarlink({ accountNumber, address }) {
     if (!accountNumber || !address || !productCode || !userTerminalId)
       throw new Error('accountNumber, address, productCode and userTerminalId are required');
   
     // 1. Create address
     const addressRes = await API.createAddress(accountNumber, address);
-    const addressNumber = addressRes.addressNumber;
+    const addressNumber = addressRes.content.addressReferenceId;
     if (!addressNumber) throw new Error('Address creation failed – missing addressNumber');
   
     // 2. Validate product code
     const products = await API.getAvailableProducts(accountNumber);
-    const productOk = products.find((p) => p.productCode === productCode);
-    if (!productOk) throw new Error('productCode not in available products list');
+    const prods = products.contents.results
+    if (prods.length > 0) throw new Error('no product available for the supplied account number');
   
     // 3. Create service line
     const serviceLineRes = await API.createServiceLine(accountNumber, {
       addressNumber,
-      productCode
+      "productReferenceId": prods[0].productReferenceId,
     });
-    const serviceLineNumber = serviceLineRes.serviceLineNumber;
+    const serviceLineNumber = serviceLineRes.content.serviceLineNumber;
     if (!serviceLineNumber) throw new Error('Service line creation failed – missing serviceLineNumber');
+
+    //3.x Create a user terminal :::::
+
   
-    // 4. Validate terminal ID
-    const terminals = await API.listUserTerminals(accountNumber);
-    const terminalOk = terminals.find((t) => t.userTerminalId === userTerminalId);
-    if (!terminalOk) throw new Error('userTerminalId is not valid for this account');
+    // 4. Add device to account 
+
+
   
     // 5. Attach terminal to service line
     const attachRes = await API.attachTerminal(accountNumber, userTerminalId, serviceLineNumber);
@@ -156,16 +209,14 @@ async function makeAuthedPost(path, body = {}) {
  *   schemas:
  *     AddressCreateRequest:
  *       type: object
- *       required: [addressLines, city, administrativeAreaCode , postalCode, regionCode, latitude, longitude]
+ *       required: [addressLines, city, administrativeAreaCode , postalCode, regionCode, google]
  *       properties:
- *         addressLines: { type: string, example: "1 Rocket Road" }
- *         street2: { type: string, nullable: true }
- *         city:    { type: string, example: "Hawthorne" }
+ *         formattedAddress: { type: string, example: "1 Rocket Road, Hawthorne, CA 90250-6844, US" }
+ *         
  *         administrativeAreaCode:   { type: string, example: "CA" }
  *         postalCode: { type: string, example: "90250" }
  *         regionCode: { type: string, example: "US" }
- *         latitude: { type: double, example: 33.92 }
- *         longitude: { type: double, example: -118.32 }
+ *         googlePlusCode : {type : string, example : "H9XV+MF Lagos"}
  * 
  * 
  *     AddressCreateResponse:
@@ -191,13 +242,11 @@ async function makeAuthedPost(path, body = {}) {
  *         status: { type: string, example: "active" }
  *     ActivationRequest:
  *       allOf:
- *         - $ref: '#/components/schemas/ServiceLineRequest'
  *         - type: object
- *           required: [accountNumber, userTerminalId,  serviceLineNumber]
+ *           required: [accountNumber, address]
  *           properties:
+ *             address: { $ref: '#/components/schemas/AddressCreateRequest' } 
  *             accountNumber: { type: string, example: "123456" }
- *             userTerminalId: { type: string, example: "UT-A1B2" }
- *             serviceLineNumber: { type: string, example: "SL7890" }
  * 
  *     ActivationResponse:
  *       type: object
@@ -266,7 +315,54 @@ app.post('/api/accounts/:account/addresses', async (req, res) => {
       res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
     }
   });
+
+    /**
+ * @swagger
+ * /api/accounts:
+ *   get:
+ *     summary: List available accounts
+ *     tags: [Accounts]
+ *     responses:
+ *       200: { description: List of accounts }
+ */
+
+  app.get('/api/accounts', async (req, res) => {
+    try {
+      const data = await makeAuthedGet("/v1/accounts")
+      res.json(data);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+    }
+  });
+
   
+  
+/**
+ * @swagger
+ * /api/accounts/{account}/servicelines:
+ *   get:
+ *     summary: List available service lines 
+ *     tags: [Accounts]
+ *     parameters:
+ *      - in : path
+ *        name : account
+ *        required : true
+ *        schema : {type : string }
+ *     responses:
+ *       200: { description: List of service lines }
+ */
+
+app.get('/api/accounts/:account/servicelines', async (req, res) => {
+    try {
+      const data = await makeAuthedGet(`/v1/account/${req.params.account}/service-lines`)
+      res.json(data);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+    }
+  });
+
   // (c) create service line
 /**
  * @swagger
@@ -386,7 +482,7 @@ app.post('/api/accounts/:account/addresses', async (req, res) => {
  *       400: { description: Validation error }
  */
   app.post('/api/activate', async (req, res) => {
-    const { accountNumber, address, productCode, userTerminalId } = req.body;
+    const { accountNumber, address } = req.body;
     try {
       const result = await activateStarlink({ accountNumber, address, productCode, userTerminalId });
       res.json({ status: 'activated', ...result });
@@ -398,7 +494,7 @@ app.post('/api/accounts/:account/addresses', async (req, res) => {
 
 app.get('/', async (req, res) => {
     
-  res.send({message : 'Starlink Activation Server is running 🚀'});
+  res.send({message : 'Starlink Activation Server is running 🚀', code : await getBearerToken()});
   
 });
 
