@@ -86,14 +86,15 @@ async function makeAuthedGet(path) {
 async function makeAuthedPost(path, body = {}) {
    console.log("[makeAuthedPost] called with ::", path, body)
     const token = await getBearerToken();
-    const { data } = await axios.post(
+    const response = await axios.post(
       `${process.env.STARLINK_BASE_URL}${path}`,
       body,
       {
-        headers: { Authorization: `Bearer ${token}` }
-      }
+        headers: { Authorization: `Bearer ${token}` },
+        validateStatus : () => true
+      },
     );
-    return data;
+    return response.data;
   }
 
 
@@ -141,14 +142,15 @@ SERVICELINENUMBER __> SL-4657821-74968-92
     getAvailableProducts: (acct) => makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`),
     createServiceLine: (acct, payload) => makeAuthedPost(`/v1/account/${acct}/service-lines`, payload),
     listUserTerminals: (acct, params = '') => makeAuthedGet(`/v1/account/${acct}/user-terminals${params}`),
-    addUserTerminal : (acct, deviceId) => makeAuthedPost(`v1/account/${acct}/user-terminals/${deviceId}`),
+    addUserTerminal : (acct, deviceId) => makeAuthedPost(`/v1/account/${acct}/user-terminals/${deviceId}`),
     attachTerminal: (acct, terminalId, serviceLineNumber) =>
       makeAuthedPost(`/v1/account/${acct}/user-terminals/${terminalId}/${serviceLineNumber}`, {})
   };
 
 
-  async function activateStarlink({ accountNumber, address }) {
-    if (!accountNumber || !address || !productCode || !userTerminalId)
+  async function activateStarlink({ accountNumber, address, kitNumber }) {
+    console.log("[activateStarlink] called with :::")
+    if (!accountNumber || !address || !kitNumber)
       throw new Error('accountNumber, address, productCode and userTerminalId are required');
   
     // 1. Create address
@@ -158,18 +160,41 @@ SERVICELINENUMBER __> SL-4657821-74968-92
   
     // 2. Validate product code
     const products = await API.getAvailableProducts(accountNumber);
-    const prods = products.contents.results
-    if (prods.length > 0) throw new Error('no product available for the supplied account number');
+    console.log("products::::", products)
+    const prods = products.content.results
+    if (prods.length === 0) throw new Error('no product available for the supplied account number');
+    
   
     // 3. Create service line
     const serviceLineRes = await API.createServiceLine(accountNumber, {
-      addressNumber,
+      "addressReferenceId": addressNumber,
       "productReferenceId": prods[0].productReferenceId,
     });
     const serviceLineNumber = serviceLineRes.content.serviceLineNumber;
     if (!serviceLineNumber) throw new Error('Service line creation failed – missing serviceLineNumber');
 
     //3.x Create a user terminal :::::
+
+    const userTerminalRes =  await API.addUserTerminal(accountNumber, kitNumber);
+
+    if(userTerminalRes.errors.length > 0 ) {
+      throw Error(userTerminalRes.errors[0].errorMessage)
+    }
+
+    const allTerminals = await API.listUserTerminals(accountNumber,`?searchString=${kitNumber}`)
+
+    console.log(allTerminals)
+
+    if(allTerminals.errors.length > 0) {
+       throw Error(allTerminals.errors[0].errorMessage)
+    }
+
+    const myTerminal  =  allTerminals.content.results.filter(x=> x.kitSerialNumber === kitNumber)
+    console.log(myTerminal)
+    if(myTerminal.length <= 0){
+      throw Error("Terminal has not been added to account")
+    }
+    const userTerminalId = myTerminal[0].userTerminalId
 
   
     // 4. Add device to account 
@@ -182,6 +207,7 @@ SERVICELINENUMBER __> SL-4657821-74968-92
     return {
       address: addressRes,
       serviceLine: serviceLineRes,
+      userTerminal : userTerminalRes,
       attach: attachRes
     };
   }
@@ -246,7 +272,8 @@ SERVICELINENUMBER __> SL-4657821-74968-92
  *           required: [accountNumber, address]
  *           properties:
  *             address: { $ref: '#/components/schemas/AddressCreateRequest' } 
- *             accountNumber: { type: string, example: "123456" }
+ *             accountNumber: { type: string, example: "ACC-4635460-74859-26" }
+ *             kitNumber : { type : string, example : "KIT304125447"}
  * 
  *     ActivationResponse:
  *       type: object
@@ -482,9 +509,9 @@ app.get('/api/accounts/:account/servicelines', async (req, res) => {
  *       400: { description: Validation error }
  */
   app.post('/api/activate', async (req, res) => {
-    const { accountNumber, address } = req.body;
+    const { accountNumber, address, kitNumber } = req.body;
     try {
-      const result = await activateStarlink({ accountNumber, address, productCode, userTerminalId });
+      const result = await activateStarlink({ accountNumber, address, kitNumber });
       res.json({ status: 'activated', ...result });
     } catch (err) {
       console.error(err);
