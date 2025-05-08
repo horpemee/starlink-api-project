@@ -139,8 +139,66 @@ SERVICELINENUMBER __> SL-4657821-74968-92
 
         return makeAuthedPost(`/v1/account/${acct}/addresses`, newPayload)
     },
-    getAvailableProducts: (acct) => makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`),
-    createServiceLine: (acct, payload) => makeAuthedPost(`/v1/account/${acct}/service-lines`, payload),
+    getAvailableProducts: (acct) => {
+      // return makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`)
+
+      return  {
+        "content": {
+          "totalCount": 1,
+          "pageIndex": 0,
+          "limit": 50,
+          "isLastPage": true,
+          "results": [
+            {
+              "productReferenceId": "ng-enterprise-starlink-impact-plan-usd",
+              "name": "Starlink Impact Plan",
+              "price": 64.5,
+              "isoCurrencyCode": "USD",
+              "isSla": false,
+              "maxNumberOfUserTerminals": 1,
+              "dataProducts": null
+            }
+          ]
+        },
+        "errors": [],
+        "warnings": [],
+        "information": [],
+        "isValid": true
+      }
+    },
+    createServiceLine: (acct, payload) => {
+
+      // makeAuthedPost(`/v1/account/${acct}/service-lines`, payload)
+
+      return {
+        
+  "content": {
+    "addressReferenceId": "45ff18f6-d44d-48c7-9630-c23e408d29f6",
+    "serviceLineNumber": "SL-4668820-36443-79",
+    "nickname": null,
+    "productReferenceId": "ng-enterprise-starlink-impact-plan-usd",
+    "delayedProductId": null,
+    "optInProductId": null,
+    "startDate": "2025-05-05T16:51:18.596009+00:00",
+    "endDate": null,
+    "publicIp": false,
+    "active": true,
+    "aviationMetadata": null,
+    "dataBlocks": {
+      "recurringBlocksCurrentBillingCycle": [],
+      "recurringBlocksNextBillingCycle": [],
+      "delayedProductRecurringBlocksNextCycle": [],
+      "topUpBlocksOptInPurchase": [],
+      "topUpBlocksOneTimePurchase": []
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "information": [],
+  "isValid": true
+      }
+    },
+    updateServiceLineNickname : (acct, serviceLineNumber, body) => makeAuthedPost(`/v1/account/${acct}/service-lines/${serviceLineNumber}/nickname`, body),
     listUserTerminals: (acct, params = '') => makeAuthedGet(`/v1/account/${acct}/user-terminals${params}`),
     addUserTerminal : (acct, deviceId) => makeAuthedPost(`/v1/account/${acct}/user-terminals/${deviceId}`),
     attachTerminal: (acct, terminalId, serviceLineNumber) =>
@@ -148,9 +206,9 @@ SERVICELINENUMBER __> SL-4657821-74968-92
   };
 
 
-  async function activateStarlink({ accountNumber, address, kitNumber }) {
+  async function activateStarlink({ accountNumber, address, kitNumber, nickname }) {
     console.log("[activateStarlink] called with :::")
-    if (!accountNumber || !address || !kitNumber)
+    if (!accountNumber || !address || !kitNumber || !nickname)
       throw new Error('accountNumber, address, productCode and userTerminalId are required');
   
     // 1. Create address
@@ -173,7 +231,12 @@ SERVICELINENUMBER __> SL-4657821-74968-92
     const serviceLineNumber = serviceLineRes.content.serviceLineNumber;
     if (!serviceLineNumber) throw new Error('Service line creation failed – missing serviceLineNumber');
 
-    //3.x Create a user terminal :::::
+    //3.x Add nickname to serviceline :::::
+    const nicknameRes =  await API.updateServiceLineNickname(accountNumber, serviceLineNumber, {nickname})
+
+    if(nicknameRes.errors.length > 0){
+      throw Error(nicknameRes.errors[0].errorMessage);
+    }
 
     const userTerminalRes =  await API.addUserTerminal(accountNumber, kitNumber);
 
@@ -274,6 +337,7 @@ SERVICELINENUMBER __> SL-4657821-74968-92
  *             address: { $ref: '#/components/schemas/AddressCreateRequest' } 
  *             accountNumber: { type: string, example: "ACC-4635460-74859-26" }
  *             kitNumber : { type : string, example : "KIT304125447"}
+ *             nickname : { type : string, example : "OPE-STARRLINK-VIA-API"}
  * 
  *     ActivationResponse:
  *       type: object
@@ -423,6 +487,17 @@ app.get('/api/accounts/:account/servicelines', async (req, res) => {
       res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
     }
   });
+
+
+  app.patch('/api/accounts/:account/service-lines/:serviceid', async (req, res) => {
+    try {
+      const data = await API.updateServiceLineNickname(req.params.account,req.params.serviceid, req.body);
+      res.json(data);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+    }
+  });
   
   // (d) list user terminals
 /**
@@ -509,9 +584,9 @@ app.get('/api/accounts/:account/servicelines', async (req, res) => {
  *       400: { description: Validation error }
  */
   app.post('/api/activate', async (req, res) => {
-    const { accountNumber, address, kitNumber } = req.body;
+    const { accountNumber, address, kitNumber, nickname} = req.body;
     try {
-      const result = await activateStarlink({ accountNumber, address, kitNumber });
+      const result = await activateStarlink({ accountNumber, address, kitNumber, nickname });
       res.json({ status: 'activated', ...result });
     } catch (err) {
       console.error(err);
