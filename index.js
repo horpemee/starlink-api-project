@@ -837,7 +837,7 @@ app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
 });
 app.get('/', async (req, res) => {
 
-  res.send({message : 'Starlink Activation Server is running 🚀', code : await getBearerToken()});
+  res.send({message : 'Starlink Activation Server is running 🚀'});
 });
 
 app.get('/api/health', (req, res) => {
