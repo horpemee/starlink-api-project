@@ -6,6 +6,7 @@ const bodyParser = require('body-parser');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 const path = require("path")
+const Mailjet = require('node-mailjet')
 const app = express();
 const port = 3000;
 const cache = {token : null, exp : 0};
@@ -20,10 +21,7 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
 const mapkey = process.env.GOOGLE_MAP_KEY
 
-// Starlink API URLs
-const authUrl = 'https://www.starlink.com/api/auth/connect/token'; // URL to get bearer token
-const activationUrl = 'https://api.starlink.com/v1/activations'; // URL to activate kit
-
+const MockAPI = require('./mocks/mock');
 
 const swaggerSpec = swaggerJsdoc({
     definition: {
@@ -66,12 +64,10 @@ async function getBearerToken() {
     }
 }
  async function reversePlusCode(pluscode){
-  const result =  await axios.get(
-    `https://plus.codes/api?address=${pluscode}&key=${mapkey}`
-  )  
-
-  return result.data
-
+    const result = await axios.get(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${pluscode}&key=${mapkey}`
+    );
+    return result.data;
 }
 async function makeAuthedGet(path) {
     const token = await getBearerToken();
@@ -98,105 +94,38 @@ async function makeAuthedPost(path, body = {}) {
   }
 
 
-  const API = {
+  const API = process.env.NODE_ENV === 'development' ? MockAPI : {
     createAddress: async (acct, payload) => {
-/*
-administrativeAreaCode
-regionCode
-formattedAddress
-latitude
-longitude
-REF -> 009eae09-031c-4e23-8297-1e8d827f56c6
-SERVICELINENUMBER __> SL-4657821-74968-92
-*/
-/*
- formattedAddress: { type: string, example: "1 Rocket Road, Hawthorne, CA 90250-6844, US" }
- *         
- *         administrativeAreaCode:   { type: string, example: "CA" }
- *         postalCode: { type: string, example: "90250" }
- *         regionCode: { type: string, example: "US" }
- *         googlePlusCode : {type : string, example : "H9XV+MF Lagos"}
-
-*/
-     
-     
-
-     const reversedAddress  = await reversePlusCode(payload.googlePlusCode)
-     
-     console.log("Reversed PlusCode", reversedAddress)
-     if(reversedAddress.status != "OK"){
-         return  { "message" : "Error occurred while creating address", data : reversedAddress}
-     }
-     
-        let newPayload  = {
-            administrativeAreaCode : payload.administrativeAreaCode,
-            regionCode : payload.regionCode,
-            addressLines : [payload.formattedAddress],
-            formattedAddress : payload.formattedAddress,
-            latitude : reversedAddress.plus_code.geometry.bounds.northeast.lat,
-            longitude : reversedAddress.plus_code.geometry.bounds.northeast.lng
+        // Reverse the google plus code to get address details
+        const reversedAddress = await reversePlusCode(payload.googlePlusCode);
+        if(reversedAddress.status !== "OK" || !reversedAddress.results || reversedAddress.results.length === 0){
+            return { "message": "Error occurred while retrieving address details", data: reversedAddress };
+        }
+        const googleResult = reversedAddress.results[0];
+        const formattedAddress = googleResult.formatted_address;
+        const parts = formattedAddress.split(',');
+        const administrativeAreaCode = parts.length >= 2 ? parts[1].trim() : payload.regionCode;
+        const latitude = googleResult.geometry.location.lat;
+        const longitude = googleResult.geometry.location.lng;
+        
+        // Build new payload with required Starlink API parameters
+        const newPayload = {
+            accountNumber: acct,
+            addressLines: [formattedAddress],
+            administrativeAreaCode,
+            regionCode: payload.regionCode,
+            formattedAddress,
+            latitude,
+            longitude
         }
 
         return makeAuthedPost(`/v1/account/${acct}/addresses`, newPayload)
     },
     getAvailableProducts: (acct) => {
-      // return makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`)
-
-      return  {
-        "content": {
-          "totalCount": 1,
-          "pageIndex": 0,
-          "limit": 50,
-          "isLastPage": true,
-          "results": [
-            {
-              "productReferenceId": "ng-enterprise-starlink-impact-plan-usd",
-              "name": "Starlink Impact Plan",
-              "price": 64.5,
-              "isoCurrencyCode": "USD",
-              "isSla": false,
-              "maxNumberOfUserTerminals": 1,
-              "dataProducts": null
-            }
-          ]
-        },
-        "errors": [],
-        "warnings": [],
-        "information": [],
-        "isValid": true
-      }
+      return makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`)     
     },
     createServiceLine: (acct, payload) => {
-
-      // makeAuthedPost(`/v1/account/${acct}/service-lines`, payload)
-
-      return {
-        
-  "content": {
-    "addressReferenceId": "45ff18f6-d44d-48c7-9630-c23e408d29f6",
-    "serviceLineNumber": "SL-4668820-36443-79",
-    "nickname": null,
-    "productReferenceId": "ng-enterprise-starlink-impact-plan-usd",
-    "delayedProductId": null,
-    "optInProductId": null,
-    "startDate": "2025-05-05T16:51:18.596009+00:00",
-    "endDate": null,
-    "publicIp": false,
-    "active": true,
-    "aviationMetadata": null,
-    "dataBlocks": {
-      "recurringBlocksCurrentBillingCycle": [],
-      "recurringBlocksNextBillingCycle": [],
-      "delayedProductRecurringBlocksNextCycle": [],
-      "topUpBlocksOptInPurchase": [],
-      "topUpBlocksOneTimePurchase": []
-    }
-  },
-  "errors": [],
-  "warnings": [],
-  "information": [],
-  "isValid": true
-      }
+    makeAuthedPost(`/v1/account/${acct}/service-lines`, payload)
     },
     updateServiceLineNickname : (acct, serviceLineNumber, body) => makeAuthedPost(`/v1/account/${acct}/service-lines/${serviceLineNumber}/nickname`, body),
     listUserTerminals: (acct, params = '') => makeAuthedGet(`/v1/account/${acct}/user-terminals${params}`),
@@ -253,7 +182,7 @@ SERVICELINENUMBER __> SL-4657821-74968-92
     }
 
     const myTerminal  =  allTerminals.content.results.filter(x=> x.kitSerialNumber === kitNumber)
-    console.log(myTerminal)
+     console.log(myTerminal)
     if(myTerminal.length <= 0){
       throw Error("Terminal has not been added to account")
     }
@@ -298,12 +227,8 @@ SERVICELINENUMBER __> SL-4657821-74968-92
  *   schemas:
  *     AddressCreateRequest:
  *       type: object
- *       required: [addressLines, city, administrativeAreaCode , postalCode, regionCode, google]
+ *       required: [regionCode, googlePlusCode]
  *       properties:
- *         formattedAddress: { type: string, example: "1 Rocket Road, Hawthorne, CA 90250-6844, US" }
- *         
- *         administrativeAreaCode:   { type: string, example: "CA" }
- *         postalCode: { type: string, example: "90250" }
  *         regionCode: { type: string, example: "US" }
  *         googlePlusCode : {type : string, example : "H9XV+MF Lagos"}
  * 
@@ -594,6 +519,314 @@ app.get('/api/accounts/:account/servicelines', async (req, res) => {
     }
   });
 
+    /**
+   * @swagger
+   * /api/accounts/{account}/user-terminals/{deviceId}:
+   *   post:
+   *     summary: Add a user terminal to an account
+   *     tags: [UserTerminals]
+   *     parameters:
+   *       - in: path
+   *         name: account
+   *         required: true
+   *         schema: { type: string }
+   *       - in: path  
+   *         name: deviceId
+   *         required: true
+   *         schema: { type: string }
+   *     responses:
+   *       200:
+   *         description: Terminal added successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 userTerminalId: { type: string }
+   */
+  app.post('/api/accounts/:account/user-terminals/:deviceId', async (req, res) => {
+    try {
+      // First add the terminal
+      const addResult = await API.addUserTerminal(req.params.account, req.params.deviceId);
+      
+      if(addResult.errors && addResult.errors.length > 0) {
+        throw new Error(addResult.errors[0].errorMessage);
+      }
+  
+      // Then get the terminal ID by listing and filtering
+      const terminals = await API.listUserTerminals(req.params.account, `?searchString=${req.params.deviceId}`);
+      
+      if(terminals.errors && terminals.errors.length > 0) {
+        throw new Error(terminals.errors[0].errorMessage);
+      }
+  
+      const terminal = terminals.content.results.find(t => t.kitSerialNumber === req.params.deviceId);
+      
+      if(!terminal) {
+        throw new Error('Terminal not found after adding kit');
+      }
+  
+      res.json({ 
+        userTerminalId: terminal.userTerminalId,
+        kitSerialNumber: terminal.kitSerialNumber
+      });
+  
+    } catch (err) {
+      console.error(err);
+      res.status(400).json({ error: err.message || 'Failed to add terminal' });
+    }
+  });
+
+
+/**
+ * @swagger
+ * /api/notifications/activation:
+ *   post:
+ *     summary: Send activation notification email
+ *     tags: [Notifications]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [contactEmail, accountNumber, serviceLineId, terminalId, kitNumber, siteName, estimatedNumber, googlePlusCode, regionLabel, companyName, regionCode]
+ *             properties:
+ *               contactEmail:
+ *                 type: string
+ *                 example: "me@emailexample.com"
+ *               accountNumber:
+ *                 type: string
+ *                 example: "ACC-4635460-74859-26"
+ *               serviceLineId:
+ *                 type: string
+ *                 example: "SL7890"
+ *               terminalId:
+ *                 type: string
+ *                 example: "UT-A1B2"
+ *               kitNumber:
+ *                 type: string
+ *                 example: "KIT304125"
+ *               siteName:
+ *                 type: string
+ *                 example: "My Site"
+ *               estimatedNumber:
+ *                 type: string
+ *                 example: "100"
+ *               googlePlusCode:
+ *                 type: string
+ *                 example: "H9XV+MF Lagos"
+ *               regionLabel:
+ *                 type: string
+ *                 example: "Lagos"
+ *               companyName:
+ *                 type: string
+ *                 example: "My Company"
+ *               regionCode:
+ *                 type: string
+ *                 example: "NG"
+ *     responses:
+ *       200:
+ *         description: Activation notification email sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Activation notification email sent successfully"
+ *       400:
+ *         description: Failed to send activation notification
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "Failed to send activation notification"
+ */
+app.post('/api/notifications/activation', async (req, res) => {
+  try {
+    const {
+      contactEmail,
+      accountNumber,
+      serviceLineId,
+      terminalId,
+      kitNumber,
+      siteName,
+      estimatedNumber,
+      googlePlusCode,
+      regionLabel,
+      companyName,
+      regionCode
+    } = req.body;
+    
+    const htmlTemplate = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+        <h1 style="color: #2c3e50; text-align: center;">New Starlink Activation Complete 🛰️</h1>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h2 style="color: #34495e; margin-top: 0;">Activation Details</h2>
+          <p style="margin: 5px 0;"><strong>Account Number:</strong> ${accountNumber}</p>
+          <p style="margin: 5px 0;"><strong>Service Line ID:</strong> ${serviceLineId}</p>
+          <p style="margin: 5px 0;"><strong>Terminal ID:</strong> ${terminalId}</p>
+
+        </div>
+  
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h2 style="color: #34495e; margin-top: 0;">Terminal &amp; Kit Details</h2>
+          <p style="margin: 5px 0;"><strong>Kit Number:</strong> ${kitNumber}</p>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h2 style="color: #34495e; margin-top: 0;">Site Information</h2>
+          <p style="margin: 5px 0;"><strong>Company Name:</strong> ${companyName}</p>
+          <p style="margin: 5px 0;"><strong>Google Plus Code:</strong> ${googlePlusCode}</p>
+          <p style="margin: 5px 0;"><strong>Region Code:</strong> ${regionCode}</p>
+          <p style="margin: 5px 0;"><strong>Site Name:</strong> ${regionLabel}</p>
+          <p style="margin: 5px 0;"><strong>Site Name:</strong> ${siteName}</p>
+          <p style="margin: 5px 0;"><strong>Estimated Number:</strong> ${estimatedNumber}</p>
+        </div>
+  
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h2 style="color: #34495e; margin-top: 0;">Contact Details</h2>
+          <p style="margin: 5px 0;"><strong>Contact Email:</strong> ${contactEmail}</p>
+        </div>
+  
+        <p style="color: #7f8c8d; font-size: 12px; text-align: center; margin-top: 20px;">
+          This is an automated message from the Starlink Activation System
+        </p>
+      </div>
+    `;
+
+    const mailjet =  new Mailjet({
+      apiKey: process.env.MJ_APIKEY_PUBLIC,
+      apiSecret: process.env.MJ_APIKEY_PRIVATE
+    });
+  
+    const request = await mailjet
+      .post("send", { version: 'v3.1' })
+      .request({
+        "Messages": [
+          {
+            "From": {
+              "Email": process.env.EMAIL_USER,
+              "Name": "Opeyemi Arifo"
+            },
+            "To": [
+              {
+                "Email": "taiwo.insight@gmail.com",
+                "Name": "Taiwo Alabi"
+              },
+              {
+                "Email": "oarifo@unconnected.org",
+                "Name": "Opeyemi Arifo"
+              }
+            ],
+            "Subject": `New Starlink Activation - ${kitNumber}`,
+            "HTMLPart": htmlTemplate
+          }
+        ]
+      });
+  
+    res.json({ 
+      success: true, 
+      message: 'Activation notification email sent successfully'
+    });
+  
+  } catch (error) {
+    console.error('Email notification error:', error);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message || 'Failed to send activation notification'
+    });
+  }
+});
+
+
+/**
+ * @swagger
+ * /api/accounts/{account}/validate-kit/{kitNumber}:
+ *   get:
+ *     summary: Validate if a kit number is registered to an account
+ *     tags: [UserTerminals]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         required: true
+ *         schema: 
+ *           type: string
+ *         description: Account number to check
+ *       - in: path
+ *         name: kitNumber
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Kit number to validate
+ *     responses:
+ *       200:
+ *         description: Kit validation result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 isRegistered: 
+ *                   type: boolean
+ *                   description: Whether the kit is registered
+ *                 terminal:
+ *                   type: object
+ *                   description: Terminal details if registered
+ *       404:
+ *         description: Kit not found
+ *       400:
+ *         description: Invalid request
+ */
+app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
+  try {
+    const { account, kitNumber } = req.params;
+    
+    // Search for terminals with the given kit number
+    const terminals = await API.listUserTerminals(account, `?searchString=${kitNumber}`);
+    
+    if (terminals.errors && terminals.errors.length > 0) {
+      throw new Error(terminals.errors[0].errorMessage);
+    }
+
+    const terminal = terminals.content.results.find(t => t.kitSerialNumber === kitNumber);
+    
+    if (!terminal) {
+      return res.json({
+        isRegistered: false,
+        message: 'Kit number not registered to this account'
+      });
+    }
+
+    return res.json({
+      isRegistered: true,
+      terminal: {
+        userTerminalId: terminal.userTerminalId,
+        kitSerialNumber: terminal.kitSerialNumber,
+        status: terminal.status,
+        serviceLineNumber: terminal.serviceLineNumber || null
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ 
+      error: err.message || 'Failed to validate kit number' 
+    });
+  }
+});
 app.get('/', async (req, res) => {
     
   res.send({message : 'Starlink Activation Server is running 🚀', code : await getBearerToken()});
