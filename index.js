@@ -6,10 +6,18 @@ const bodyParser = require('body-parser');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 const path = require("path")
+const cors = require('cors');
 const Mailjet = require('node-mailjet')
 const app = express();
 const port = 3000;
 const cache = {token : null, exp : 0};
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+app.use(cors({ 
+    origin: FRONTEND_URL,
+    credentials: true
+}));
 
 // Middleware to parse JSON and URL encoded data
 app.use(bodyParser.json());
@@ -828,11 +836,14 @@ app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
   }
 });
 app.get('/', async (req, res) => {
-    
+
   res.send({message : 'Starlink Activation Server is running 🚀', code : await getBearerToken()});
-  
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`API listening on ${port}`);
 });
