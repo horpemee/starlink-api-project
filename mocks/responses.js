@@ -39,7 +39,7 @@ const mockResponses = {
   serviceLine: {
     content: {
       addressReferenceId: "mock-addr-123",
-      serviceLineNumber: "SL-MOCK-123",
+      serviceLineNumber: "SL-5125283-42488-77",
       nickname: "Mock Service",
       productReferenceId: "mock-starlink-plan",
       startDate: new Date().toISOString(),

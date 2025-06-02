@@ -12,7 +12,7 @@ const app = express();
 const port = 3000;
 const cache = {token : null, exp : 0};
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 
 app.use(cors({ 
     origin: FRONTEND_URL,
@@ -87,6 +87,33 @@ async function makeAuthedGet(path) {
     );
     return data;
   }
+
+async function makeAuthedPut(path, body={}) {
+  console.log("[makeAuthedPost] called with ::", path, body)
+    const token = await getBearerToken();
+    const response = await axios.put(
+      `${process.env.STARLINK_BASE_URL}${path}`,
+      body,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        validateStatus : () => true
+      },
+    );
+    return response.data;
+}
+async function makeAuthedDelete(path) {
+    console.log("[makeAuthedDelete] called with ::", path)
+    const token = await getBearerToken();
+    const response = await axios.delete(
+      `${process.env.STARLINK_BASE_URL}${path}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        validateStatus : () => true
+      },
+    );
+    return response.data;
+  }
+
 async function makeAuthedPost(path, body = {}) {
    console.log("[makeAuthedPost] called with ::", path, body)
     const token = await getBearerToken();
@@ -117,11 +144,23 @@ async function makeAuthedPost(path, body = {}) {
         const longitude = googleResult.geometry.location.lng;
         
         // Build new payload with required Starlink API parameters
+        // Reverse regionCode to actual region code
+        const accountRenames = {
+        'ACC-6814367-50278-22': 'PH',
+        'ACC-7580055-64428-19': 'PH',
+        'ACC-7071161-50554-7': 'PH',
+        'ACC-7393314-12390-10': 'NG',
+       }
+        const regionCode = accountRenames[acct] || payload.regionCode;
+        console.log("[createAddress] called with ::", acct, payload, formattedAddress, administrativeAreaCode, regionCode, latitude, longitude)
+
+
+
         const newPayload = {
             accountNumber: acct,
             addressLines: [formattedAddress],
             administrativeAreaCode,
-            regionCode: payload.regionCode,
+            regionCode: regionCode,
             formattedAddress,
             latitude,
             longitude
@@ -132,14 +171,18 @@ async function makeAuthedPost(path, body = {}) {
     getAvailableProducts: (acct) => {
       return makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`)     
     },
-    createServiceLine: (acct, payload) => {
-    makeAuthedPost(`/v1/account/${acct}/service-lines`, payload)
+    createServiceLine: async (acct, payload) => {
+    return makeAuthedPost(`/v1/account/${acct}/service-lines`, payload)
     },
-    updateServiceLineNickname : (acct, serviceLineNumber, body) => makeAuthedPost(`/v1/account/${acct}/service-lines/${serviceLineNumber}/nickname`, body),
+    updateServiceLineNickname : (acct, serviceLineNumber, body) => makeAuthedPut(`/v1/account/${acct}/service-lines/${serviceLineNumber}/nickname`, body),
     listUserTerminals: (acct, params = '') => makeAuthedGet(`/v1/account/${acct}/user-terminals${params}`),
     addUserTerminal : (acct, deviceId) => makeAuthedPost(`/v1/account/${acct}/user-terminals/${deviceId}`),
     attachTerminal: (acct, terminalId, serviceLineNumber) =>
-      makeAuthedPost(`/v1/account/${acct}/user-terminals/${terminalId}/${serviceLineNumber}`, {})
+      makeAuthedPost(`/v1/account/${acct}/user-terminals/${terminalId}/${serviceLineNumber}`, {}),
+
+    removeDeviceFromAccount: (acct, deviceId) => {
+      return makeAuthedDelete(`/v1/account/${acct}/user-terminals/${deviceId}`);
+    }
   };
 
 
@@ -161,11 +204,11 @@ async function makeAuthedPost(path, body = {}) {
     
   
     // 3. Create service line
-    const serviceLineRes = await API.createServiceLine(accountNumber, {
-      "addressReferenceId": addressNumber,
-      "productReferenceId": prods[0].productReferenceId,
-    });
-    const serviceLineNumber = serviceLineRes.content.serviceLineNumber;
+    // const serviceLineRes = await API.createServiceLine(accountNumber, {
+    //   "addressReferenceId": addressNumber,
+    //   "productReferenceId": prods[0].productReferenceId,
+    // });
+    const serviceLineNumber = "SL-5125237-18809-76 " //serviceLineRes.content.serviceLineNumber;
     if (!serviceLineNumber) throw new Error('Service line creation failed – missing serviceLineNumber');
 
     //3.x Add nickname to serviceline :::::
@@ -213,10 +256,43 @@ async function makeAuthedPost(path, body = {}) {
   }
 
 
+  app.delete('/api/accounts/:account/user-terminals/:deviceId', async (req, res) => {
+    try {
+      const { account, deviceId } = req.params;
+      const result = await API.removeDeviceFromAccount(account, deviceId);
+      res.json(result);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+    }
+  });
+
 
   app.get('/api/accounts', async (req, res) => {
     try {
       const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
+      const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-2963072-59271-18'];
+      // Filter out unwanted accounts
+      data.content.results = data.content.results.filter(account => !unwantedAccounts.includes(account.accountNumber));
+
+      // account number to rename mapping
+      const accountRenames = {
+        'ACC-6814367-50278-22': 'Unconnected Partner 1',
+        'ACC-7580055-64428-19': 'Unconnected Partner 2',
+        'ACC-7071161-50554-7': 'Unconnected Partner 3',
+        'ACC-7393314-12390-10': 'TESTER API ACCOUNT',
+       }
+      // Rename accounts based on mapping
+      data.content.results = data.content.results.map(account => {
+        if (accountRenames[account.accountNumber]) {
+          return {
+            ...account,
+            regionCode: accountRenames[account.accountNumber]
+          };
+        }
+        return account;
+      });
+
       res.json(data);
     } catch (err) {
       console.error(err.response?.data || err.message);
@@ -699,7 +775,7 @@ app.post('/api/notifications/activation', async (req, res) => {
           <p style="margin: 5px 0;"><strong>Company Name:</strong> ${companyName}</p>
           <p style="margin: 5px 0;"><strong>Google Plus Code:</strong> ${googlePlusCode}</p>
           <p style="margin: 5px 0;"><strong>Region Code:</strong> ${regionCode}</p>
-          <p style="margin: 5px 0;"><strong>Site Name:</strong> ${regionLabel}</p>
+          <p style="margin: 5px 0;"><strong>Account Name:</strong> ${regionLabel}</p>
           <p style="margin: 5px 0;"><strong>Site Name:</strong> ${siteName}</p>
           <p style="margin: 5px 0;"><strong>Estimated Number:</strong> ${estimatedNumber}</p>
         </div>
@@ -730,10 +806,6 @@ app.post('/api/notifications/activation', async (req, res) => {
               "Name": "Opeyemi Arifo"
             },
             "To": [
-              {
-                "Email": "taiwo.insight@gmail.com",
-                "Name": "Taiwo Alabi"
-              },
               {
                 "Email": "oarifo@unconnected.org",
                 "Name": "Opeyemi Arifo"
@@ -809,7 +881,7 @@ app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
       throw new Error(terminals.errors[0].errorMessage);
     }
 
-    const terminal = terminals.content.results.find(t => t.kitSerialNumber === kitNumber);
+    const terminal = terminals.content.results.find(t => t.active  == true);
     
     if (!terminal) {
       return res.json({
