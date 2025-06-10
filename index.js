@@ -256,6 +256,8 @@ async function makeAuthedPost(path, body = {}) {
   }
 
 
+  
+
   app.delete('/api/accounts/:account/user-terminals/:deviceId', async (req, res) => {
     try {
       const { account, deviceId } = req.params;
@@ -807,8 +809,8 @@ app.post('/api/notifications/activation', async (req, res) => {
             },
             "To": [
               {
-                "Email": "oarifo@unconnected.org",
-                "Name": "Opeyemi Arifo"
+                "Email": "support@unconnected.org",
+                "Name": "Unconnected.Org"
               }
             ],
             "Subject": `New Starlink Activation - ${kitNumber}`,
