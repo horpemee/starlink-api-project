@@ -220,6 +220,7 @@ async function activateStarlink({ accountNumber, address, kitNumber, nickname })
 
   const userTerminalRes = await API.addUserTerminal(accountNumber, kitNumber);
 
+<<<<<<< HEAD
   if (userTerminalRes.errors.length > 0) {
     throw Error(userTerminalRes.errors[0].errorMessage)
   }
@@ -281,6 +282,18 @@ app.get('/api/accounts', async (req, res) => {
       'ACC-7580055-64428-19': 'Unconnected Partner 2',
       'ACC-7071161-50554-7': 'Unconnected Partner 3',
       'ACC-7393314-12390-10': 'TESTER API ACCOUNT',
+=======
+  
+
+  app.delete('/api/accounts/:account/user-terminals/:deviceId', async (req, res) => {
+    try {
+      const { account, deviceId } = req.params;
+      const result = await API.removeDeviceFromAccount(account, deviceId);
+      res.json(result);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+>>>>>>> ff1fd2a170cbff38f750a02fe550d325a92046fe
     }
     // Rename accounts based on mapping
     data.content.results = data.content.results.map(account => {
@@ -807,8 +820,8 @@ app.post('/api/notifications/activation', async (req, res) => {
             },
             "To": [
               {
-                "Email": "oarifo@unconnected.org",
-                "Name": "Opeyemi Arifo"
+                "Email": "support@unconnected.org",
+                "Name": "Unconnected.Org"
               }
             ],
             "Subject": `New Starlink Activation - ${kitNumber}`,
@@ -943,5 +956,10 @@ app.get('/api/health', (req, res) => {
 });
 
 app.listen(port, () => {
+<<<<<<< HEAD
   console.log(`API listening on ${port}`);
 });
+=======
+    console.log(`API listening on ${port}`);
+});
+>>>>>>> ff1fd2a170cbff38f750a02fe550d325a92046fe
