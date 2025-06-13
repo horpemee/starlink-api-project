@@ -10,13 +10,13 @@ const cors = require('cors');
 const Mailjet = require('node-mailjet')
 const app = express();
 const port = 3000;
-const cache = {token : null, exp : 0};
+const cache = { token: null, exp: 0 };
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 
-app.use(cors({ 
-    origin: FRONTEND_URL,
-    credentials: true
+app.use(cors({
+  origin: FRONTEND_URL,
+  credentials: true
 }));
 
 // Middleware to parse JSON and URL encoded data
@@ -32,276 +32,276 @@ const mapkey = process.env.GOOGLE_MAP_KEY
 const MockAPI = require('./mocks/mock');
 
 const swaggerSpec = swaggerJsdoc({
-    definition: {
-      openapi: '3.0.1',
-      info: {
-        title: 'Starlink Activation Gateway',
-        version: '1.0.0',
-        description:
-          'Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.'
-      },
-      servers: [{ url: 'http://localhost:3000' }, {url : "https://starlink-api-project.onrender.com/"} ]
+  definition: {
+    openapi: '3.0.1',
+    info: {
+      title: 'Starlink Activation Gateway',
+      version: '1.0.0',
+      description:
+        'Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.'
     },
-    // Scan this file for JSDoc @swagger blocks
-    apis: [path.join(__dirname, 'index.js')]
-  });
-  
-  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+    servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+  },
+  // Scan this file for JSDoc @swagger blocks
+  apis: [path.join(__dirname, 'index.js')]
+});
+
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Helper Function: Get Bearer Token
 async function getBearerToken() {
-    if(cache.token && Date.now() < cache.exp) {
-        console.log("using the token in cache");
-        return cache.token
-    };
-    try {
-        const response = await axios.post("https://www.starlink.com/api/auth/connect/token", {
-            grant_type: 'client_credentials',
-            client_id: CLIENT_ID,
-            client_secret: CLIENT_SECRET,
-        }, {headers : {'Content-type': 'application/x-www-form-urlencoded'} });
+  if (cache.token && Date.now() < cache.exp) {
+    console.log("using the token in cache");
+    return cache.token
+  };
+  try {
+    const response = await axios.post("https://www.starlink.com/api/auth/connect/token", {
+      grant_type: 'client_credentials',
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    }, { headers: { 'Content-type': 'application/x-www-form-urlencoded' } });
 
-        cache.token = response.data.access_token
+    cache.token = response.data.access_token
 
-        cache.exp = Date.now()  + (response.data.expires_in -60) * 1000;
+    cache.exp = Date.now() + (response.data.expires_in - 60) * 1000;
 
-        return cache.token 
-    } catch (error) {
-        console.error('Error getting bearer token:', error.response.data || error.message);
-        throw new Error('Failed to get bearer token');
-    }
+    return cache.token
+  } catch (error) {
+    console.error('Error getting bearer token:', error.response.data || error.message);
+    throw new Error('Failed to get bearer token');
+  }
 }
- async function reversePlusCode(pluscode){
-    const result = await axios.get(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${pluscode}&key=${mapkey}`
-    );
-    return result.data;
+async function reversePlusCode(pluscode) {
+  const result = await axios.get(
+    `https://maps.googleapis.com/maps/api/geocode/json?address=${pluscode}&key=${mapkey}`
+  );
+  return result.data;
 }
 async function makeAuthedGet(path) {
-    const token = await getBearerToken();
-    const { data } = await axios.get(
-      `${process.env.STARLINK_BASE_URL}${path}`,
-      {
-        headers: { Authorization: `Bearer ${token}` }
-      }
-    );
-    return data;
-  }
+  const token = await getBearerToken();
+  const { data } = await axios.get(
+    `${process.env.STARLINK_BASE_URL}${path}`,
+    {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  );
+  return data;
+}
 
-async function makeAuthedPut(path, body={}) {
+async function makeAuthedPut(path, body = {}) {
   console.log("[makeAuthedPost] called with ::", path, body)
-    const token = await getBearerToken();
-    const response = await axios.put(
-      `${process.env.STARLINK_BASE_URL}${path}`,
-      body,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        validateStatus : () => true
-      },
-    );
-    return response.data;
+  const token = await getBearerToken();
+  const response = await axios.put(
+    `${process.env.STARLINK_BASE_URL}${path}`,
+    body,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      validateStatus: () => true
+    },
+  );
+  return response.data;
 }
 async function makeAuthedDelete(path) {
-    console.log("[makeAuthedDelete] called with ::", path)
-    const token = await getBearerToken();
-    const response = await axios.delete(
-      `${process.env.STARLINK_BASE_URL}${path}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        validateStatus : () => true
-      },
-    );
-    return response.data;
-  }
+  console.log("[makeAuthedDelete] called with ::", path)
+  const token = await getBearerToken();
+  const response = await axios.delete(
+    `${process.env.STARLINK_BASE_URL}${path}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      validateStatus: () => true
+    },
+  );
+  return response.data;
+}
 
 async function makeAuthedPost(path, body = {}) {
-   console.log("[makeAuthedPost] called with ::", path, body)
-    const token = await getBearerToken();
-    const response = await axios.post(
-      `${process.env.STARLINK_BASE_URL}${path}`,
-      body,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        validateStatus : () => true
-      },
-    );
-    return response.data;
-  }
-
-
-  const API = process.env.NODE_ENV === 'development' ? MockAPI : {
-    createAddress: async (acct, payload) => {
-        // Reverse the google plus code to get address details
-        const reversedAddress = await reversePlusCode(payload.googlePlusCode);
-        if(reversedAddress.status !== "OK" || !reversedAddress.results || reversedAddress.results.length === 0){
-            return { "message": "Error occurred while retrieving address details", data: reversedAddress };
-        }
-        const googleResult = reversedAddress.results[0];
-        const formattedAddress = googleResult.formatted_address;
-        const parts = formattedAddress.split(',');
-        const administrativeAreaCode = parts.length >= 2 ? parts[1].trim() : payload.regionCode;
-        const latitude = googleResult.geometry.location.lat;
-        const longitude = googleResult.geometry.location.lng;
-        
-        // Build new payload with required Starlink API parameters
-        // Reverse regionCode to actual region code
-        const accountRenames = {
-        'ACC-6814367-50278-22': 'PH',
-        'ACC-7580055-64428-19': 'PH',
-        'ACC-7071161-50554-7': 'PH',
-        'ACC-7393314-12390-10': 'NG',
-       }
-        const regionCode = accountRenames[acct] || payload.regionCode;
-        console.log("[createAddress] called with ::", acct, payload, formattedAddress, administrativeAreaCode, regionCode, latitude, longitude)
-
-
-
-        const newPayload = {
-            accountNumber: acct,
-            addressLines: [formattedAddress],
-            administrativeAreaCode,
-            regionCode: regionCode,
-            formattedAddress,
-            latitude,
-            longitude
-        }
-
-        return makeAuthedPost(`/v1/account/${acct}/addresses`, newPayload)
+  console.log("[makeAuthedPost] called with ::", path, body)
+  const token = await getBearerToken();
+  const response = await axios.post(
+    `${process.env.STARLINK_BASE_URL}${path}`,
+    body,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      validateStatus: () => true
     },
-    getAvailableProducts: (acct) => {
-      return makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`)     
-    },
-    createServiceLine: async (acct, payload) => {
+  );
+  return response.data;
+}
+
+
+const API = process.env.NODE_ENV === 'development' ? MockAPI : {
+  createAddress: async (acct, payload) => {
+    // Reverse the google plus code to get address details
+    const reversedAddress = await reversePlusCode(payload.googlePlusCode);
+    if (reversedAddress.status !== "OK" || !reversedAddress.results || reversedAddress.results.length === 0) {
+      return { "message": "Error occurred while retrieving address details", data: reversedAddress };
+    }
+    const googleResult = reversedAddress.results[0];
+    const formattedAddress = googleResult.formatted_address;
+    const parts = formattedAddress.split(',');
+    const administrativeAreaCode = parts.length >= 2 ? parts[1].trim() : payload.regionCode;
+    const latitude = googleResult.geometry.location.lat;
+    const longitude = googleResult.geometry.location.lng;
+
+    // Build new payload with required Starlink API parameters
+    // Reverse regionCode to actual region code
+    const accountRenames = {
+      'ACC-6814367-50278-22': 'PH',
+      'ACC-7580055-64428-19': 'PH',
+      'ACC-7071161-50554-7': 'PH',
+      'ACC-7393314-12390-10': 'NG',
+    }
+    const regionCode = accountRenames[acct] || payload.regionCode;
+    console.log("[createAddress] called with ::", acct, payload, formattedAddress, administrativeAreaCode, regionCode, latitude, longitude)
+
+
+
+    const newPayload = {
+      accountNumber: acct,
+      addressLines: [formattedAddress],
+      administrativeAreaCode,
+      regionCode: regionCode,
+      formattedAddress,
+      latitude,
+      longitude
+    }
+
+    return makeAuthedPost(`/v1/account/${acct}/addresses`, newPayload)
+  },
+  getAvailableProducts: (acct) => {
+    return makeAuthedGet(`/v1/account/${acct}/service-lines/available-products`)
+  },
+  createServiceLine: async (acct, payload) => {
     return makeAuthedPost(`/v1/account/${acct}/service-lines`, payload)
-    },
-    updateServiceLineNickname : (acct, serviceLineNumber, body) => makeAuthedPut(`/v1/account/${acct}/service-lines/${serviceLineNumber}/nickname`, body),
-    listUserTerminals: (acct, params = '') => makeAuthedGet(`/v1/account/${acct}/user-terminals${params}`),
-    addUserTerminal : (acct, deviceId) => makeAuthedPost(`/v1/account/${acct}/user-terminals/${deviceId}`),
-    attachTerminal: (acct, terminalId, serviceLineNumber) =>
-      makeAuthedPost(`/v1/account/${acct}/user-terminals/${terminalId}/${serviceLineNumber}`, {}),
+  },
+  updateServiceLineNickname: (acct, serviceLineNumber, body) => makeAuthedPut(`/v1/account/${acct}/service-lines/${serviceLineNumber}/nickname`, body),
+  listUserTerminals: (acct, params = '') => makeAuthedGet(`/v1/account/${acct}/user-terminals${params}`),
+  addUserTerminal: (acct, deviceId) => makeAuthedPost(`/v1/account/${acct}/user-terminals/${deviceId}`),
+  attachTerminal: (acct, terminalId, serviceLineNumber) =>
+    makeAuthedPost(`/v1/account/${acct}/user-terminals/${terminalId}/${serviceLineNumber}`, {}),
 
-    removeDeviceFromAccount: (acct, deviceId) => {
-      return makeAuthedDelete(`/v1/account/${acct}/user-terminals/${deviceId}`);
-    }
-  };
-
-
-  async function activateStarlink({ accountNumber, address, kitNumber, nickname }) {
-    console.log("[activateStarlink] called with :::")
-    if (!accountNumber || !address || !kitNumber || !nickname)
-      throw new Error('accountNumber, address, productCode and userTerminalId are required');
-  
-    // 1. Create address
-    const addressRes = await API.createAddress(accountNumber, address);
-    const addressNumber = addressRes.content.addressReferenceId;
-    if (!addressNumber) throw new Error('Address creation failed – missing addressNumber');
-  
-    // 2. Validate product code
-    const products = await API.getAvailableProducts(accountNumber);
-    console.log("products::::", products)
-    const prods = products.content.results
-    if (prods.length === 0) throw new Error('no product available for the supplied account number');
-    
-  
-    // 3. Create service line
-    // const serviceLineRes = await API.createServiceLine(accountNumber, {
-    //   "addressReferenceId": addressNumber,
-    //   "productReferenceId": prods[0].productReferenceId,
-    // });
-    const serviceLineNumber = "SL-5125237-18809-76 " //serviceLineRes.content.serviceLineNumber;
-    if (!serviceLineNumber) throw new Error('Service line creation failed – missing serviceLineNumber');
-
-    //3.x Add nickname to serviceline :::::
-    const nicknameRes =  await API.updateServiceLineNickname(accountNumber, serviceLineNumber, {nickname})
-
-    if(nicknameRes.errors.length > 0){
-      throw Error(nicknameRes.errors[0].errorMessage);
-    }
-
-    const userTerminalRes =  await API.addUserTerminal(accountNumber, kitNumber);
-
-    if(userTerminalRes.errors.length > 0 ) {
-      throw Error(userTerminalRes.errors[0].errorMessage)
-    }
-
-    const allTerminals = await API.listUserTerminals(accountNumber,`?searchString=${kitNumber}`)
-
-    console.log(allTerminals)
-
-    if(allTerminals.errors.length > 0) {
-       throw Error(allTerminals.errors[0].errorMessage)
-    }
-
-    const myTerminal  =  allTerminals.content.results.filter(x=> x.kitSerialNumber === kitNumber)
-     console.log(myTerminal)
-    if(myTerminal.length <= 0){
-      throw Error("Terminal has not been added to account")
-    }
-    const userTerminalId = myTerminal[0].userTerminalId
-
-  
-    // 4. Add device to account 
+  removeDeviceFromAccount: (acct, deviceId) => {
+    return makeAuthedDelete(`/v1/account/${acct}/user-terminals/${deviceId}`);
+  }
+};
 
 
-  
-    // 5. Attach terminal to service line
-    const attachRes = await API.attachTerminal(accountNumber, userTerminalId, serviceLineNumber);
-  
-    return {
-      address: addressRes,
-      serviceLine: serviceLineRes,
-      userTerminal : userTerminalRes,
-      attach: attachRes
-    };
+async function activateStarlink({ accountNumber, address, kitNumber, nickname }) {
+  console.log("[activateStarlink] called with :::")
+  if (!accountNumber || !address || !kitNumber || !nickname)
+    throw new Error('accountNumber, address, productCode and userTerminalId are required');
+
+  // 1. Create address
+  const addressRes = await API.createAddress(accountNumber, address);
+  const addressNumber = addressRes.content.addressReferenceId;
+  if (!addressNumber) throw new Error('Address creation failed – missing addressNumber');
+
+  // 2. Validate product code
+  const products = await API.getAvailableProducts(accountNumber);
+  console.log("products::::", products)
+  const prods = products.content.results
+  if (prods.length === 0) throw new Error('no product available for the supplied account number');
+
+
+  // 3. Create service line
+  // const serviceLineRes = await API.createServiceLine(accountNumber, {
+  //   "addressReferenceId": addressNumber,
+  //   "productReferenceId": prods[0].productReferenceId,
+  // });
+  const serviceLineNumber = "SL-5125237-18809-76 " //serviceLineRes.content.serviceLineNumber;
+  if (!serviceLineNumber) throw new Error('Service line creation failed – missing serviceLineNumber');
+
+  //3.x Add nickname to serviceline :::::
+  const nicknameRes = await API.updateServiceLineNickname(accountNumber, serviceLineNumber, { nickname })
+
+  if (nicknameRes.errors.length > 0) {
+    throw Error(nicknameRes.errors[0].errorMessage);
   }
 
+  const userTerminalRes = await API.addUserTerminal(accountNumber, kitNumber);
 
-  app.delete('/api/accounts/:account/user-terminals/:deviceId', async (req, res) => {
-    try {
-      const { account, deviceId } = req.params;
-      const result = await API.removeDeviceFromAccount(account, deviceId);
-      res.json(result);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  if (userTerminalRes.errors.length > 0) {
+    throw Error(userTerminalRes.errors[0].errorMessage)
+  }
+
+  const allTerminals = await API.listUserTerminals(accountNumber, `?searchString=${kitNumber}`)
+
+  console.log(allTerminals)
+
+  if (allTerminals.errors.length > 0) {
+    throw Error(allTerminals.errors[0].errorMessage)
+  }
+
+  const myTerminal = allTerminals.content.results.filter(x => x.kitSerialNumber === kitNumber)
+  console.log(myTerminal)
+  if (myTerminal.length <= 0) {
+    throw Error("Terminal has not been added to account")
+  }
+  const userTerminalId = myTerminal[0].userTerminalId
+
+
+  // 4. Add device to account 
+
+
+
+  // 5. Attach terminal to service line
+  const attachRes = await API.attachTerminal(accountNumber, userTerminalId, serviceLineNumber);
+
+  return {
+    address: addressRes,
+    serviceLine: serviceLineRes,
+    userTerminal: userTerminalRes,
+    attach: attachRes
+  };
+}
+
+
+app.delete('/api/accounts/:account/user-terminals/:deviceId', async (req, res) => {
+  try {
+    const { account, deviceId } = req.params;
+    const result = await API.removeDeviceFromAccount(account, deviceId);
+    res.json(result);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
+
+
+app.get('/api/accounts', async (req, res) => {
+  try {
+    const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
+    const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-2963072-59271-18'];
+    // Filter out unwanted accounts
+    data.content.results = data.content.results.filter(account => !unwantedAccounts.includes(account.accountNumber));
+
+    // account number to rename mapping
+    const accountRenames = {
+      'ACC-6814367-50278-22': 'Unconnected Partner 1',
+      'ACC-7580055-64428-19': 'Unconnected Partner 2',
+      'ACC-7071161-50554-7': 'Unconnected Partner 3',
+      'ACC-7393314-12390-10': 'TESTER API ACCOUNT',
     }
-  });
+    // Rename accounts based on mapping
+    data.content.results = data.content.results.map(account => {
+      if (accountRenames[account.accountNumber]) {
+        return {
+          ...account,
+          regionCode: accountRenames[account.accountNumber]
+        };
+      }
+      return account;
+    });
 
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json({ error: err.response?.data || 'Could not fetch accounts' });
+  }
+});
 
-  app.get('/api/accounts', async (req, res) => {
-    try {
-      const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
-      const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-2963072-59271-18'];
-      // Filter out unwanted accounts
-      data.content.results = data.content.results.filter(account => !unwantedAccounts.includes(account.accountNumber));
-
-      // account number to rename mapping
-      const accountRenames = {
-        'ACC-6814367-50278-22': 'Unconnected Partner 1',
-        'ACC-7580055-64428-19': 'Unconnected Partner 2',
-        'ACC-7071161-50554-7': 'Unconnected Partner 3',
-        'ACC-7393314-12390-10': 'TESTER API ACCOUNT',
-       }
-      // Rename accounts based on mapping
-      data.content.results = data.content.results.map(account => {
-        if (accountRenames[account.accountNumber]) {
-          return {
-            ...account,
-            regionCode: accountRenames[account.accountNumber]
-          };
-        }
-        return account;
-      });
-
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res
-        .status(err.response?.status || 500)
-        .json({ error: err.response?.data || 'Could not fetch accounts' });
-    }
-  });
-  
 
 // (a) create address
 
@@ -381,63 +381,63 @@ async function makeAuthedPost(path, body = {}) {
  *             schema: { $ref: '#/components/schemas/AddressCreateResponse' }
  */
 app.post('/api/accounts/:account/addresses', async (req, res) => {
-    try {
-      const data = await API.createAddress(req.params.account, req.body);
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
-    }
-  });
-  
-  // (b) get available products (already existed but keeping consistent path)
+  try {
+    const data = await API.createAddress(req.params.account, req.body);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
 
-  /**
- * @swagger
- * /api/accounts/{account}/products:
- *   get:
- *     summary: List available products for an account
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: account
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: List of products }
- */
-  app.get('/api/accounts/:account/products', async (req, res) => {
-    try {
-      const data = await API.getAvailableProducts(req.params.account);
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
-    }
-  });
+// (b) get available products (already existed but keeping consistent path)
 
-    /**
- * @swagger
- * /api/accounts:
- *   get:
- *     summary: List available accounts
- *     tags: [Accounts]
- *     responses:
- *       200: { description: List of accounts }
- */
+/**
+* @swagger
+* /api/accounts/{account}/products:
+*   get:
+*     summary: List available products for an account
+*     tags: [Products]
+*     parameters:
+*       - in: path
+*         name: account
+*         required: true
+*         schema: { type: string }
+*     responses:
+*       200: { description: List of products }
+*/
+app.get('/api/accounts/:account/products', async (req, res) => {
+  try {
+    const data = await API.getAvailableProducts(req.params.account);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
 
-  app.get('/api/accounts', async (req, res) => {
-    try {
-      const data = await makeAuthedGet("/v1/accounts")
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
-    }
-  });
+/**
+* @swagger
+* /api/accounts:
+*   get:
+*     summary: List available accounts
+*     tags: [Accounts]
+*     responses:
+*       200: { description: List of accounts }
+*/
 
-  
-  
+app.get('/api/accounts', async (req, res) => {
+  try {
+    const data = await makeAuthedGet("/v1/accounts")
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
+
+
+
 /**
  * @swagger
  * /api/accounts/{account}/servicelines:
@@ -454,16 +454,16 @@ app.post('/api/accounts/:account/addresses', async (req, res) => {
  */
 
 app.get('/api/accounts/:account/servicelines', async (req, res) => {
-    try {
-      const data = await makeAuthedGet(`/v1/account/${req.params.account}/service-lines`)
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
-    }
-  });
+  try {
+    const data = await makeAuthedGet(`/v1/account/${req.params.account}/service-lines`)
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
 
-  // (c) create service line
+// (c) create service line
 /**
  * @swagger
  * /api/accounts/{account}/service-lines:
@@ -487,28 +487,28 @@ app.get('/api/accounts/:account/servicelines', async (req, res) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ServiceLineResponse' }
  */
-  app.post('/api/accounts/:account/service-lines', async (req, res) => {
-    try {
-      const data = await API.createServiceLine(req.params.account, req.body);
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
-    }
-  });
+app.post('/api/accounts/:account/service-lines', async (req, res) => {
+  try {
+    const data = await API.createServiceLine(req.params.account, req.body);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
 
 
-  app.patch('/api/accounts/:account/service-lines/:serviceid', async (req, res) => {
-    try {
-      const data = await API.updateServiceLineNickname(req.params.account,req.params.serviceid, req.body);
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
-    }
-  });
-  
-  // (d) list user terminals
+app.patch('/api/accounts/:account/service-lines/:serviceid', async (req, res) => {
+  try {
+    const data = await API.updateServiceLineNickname(req.params.account, req.params.serviceid, req.body);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
+
+// (d) list user terminals
 /**
  * @swagger
  * /api/accounts/{account}/user-terminals:
@@ -529,137 +529,137 @@ app.get('/api/accounts/:account/servicelines', async (req, res) => {
  *               type: array
  *               items: { $ref: '#/components/schemas/UserTerminal' }
  */
-  app.get('/api/accounts/:account/user-terminals', async (req, res) => {
-    try {
-      const data = await API.listUserTerminals(req.params.account);
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
-    }
-  });
-  
-  // (e) attach terminal to service line
-  /**
- * @swagger
- * /api/accounts/{account}/user-terminals/{terminalId}/{serviceLineNumber}:
- *   post:
- *     summary: Attach a user terminal to a service line
- *     tags: [UserTerminals]
- *     parameters:
- *       - in: path
- *         name: account
- *         required: true
- *         schema: { type: string }
- *       - in: path
- *         name: terminalId
- *         required: true
- *         schema: { type: string }
- *       - in: path
- *         name: serviceLineNumber
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: Terminal attached }
- */
-  app.post('/api/accounts/:account/user-terminals/:terminalId/:serviceLineNumber', async (req, res) => {
-    try {
-      const data = await API.attachTerminal(req.params.account, req.params.terminalId, req.params.serviceLineNumber);
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
-    }
-  });
-  
-  // (f) one‑shot activation
-  /**
- * @swagger
- * /api/activate:
- *   post:
- *     summary: One‑shot activation (address → service‑line → attach)
- *     tags: [Activation]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema: { $ref: '#/components/schemas/ActivationRequest' }
- *     responses:
- *       200:
- *         description: Activation succeeded
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/ActivationResponse' }
- *       400: { description: Validation error }
- */
-  app.post('/api/activate', async (req, res) => {
-    const { accountNumber, address, kitNumber, nickname} = req.body;
-    try {
-      const result = await activateStarlink({ accountNumber, address, kitNumber, nickname });
-      res.json({ status: 'activated', ...result });
-    } catch (err) {
-      console.error(err);
-      res.status(400).json({ error: err.message || 'Activation failed' });
-    }
-  });
+app.get('/api/accounts/:account/user-terminals', async (req, res) => {
+  try {
+    const data = await API.listUserTerminals(req.params.account);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
 
-    /**
-   * @swagger
-   * /api/accounts/{account}/user-terminals/{deviceId}:
-   *   post:
-   *     summary: Add a user terminal to an account
-   *     tags: [UserTerminals]
-   *     parameters:
-   *       - in: path
-   *         name: account
-   *         required: true
-   *         schema: { type: string }
-   *       - in: path  
-   *         name: deviceId
-   *         required: true
-   *         schema: { type: string }
-   *     responses:
-   *       200:
-   *         description: Terminal added successfully
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: object
-   *               properties:
-   *                 userTerminalId: { type: string }
-   */
-  app.post('/api/accounts/:account/user-terminals/:deviceId', async (req, res) => {
-    try {
-      // First add the terminal
-      const addResult = await API.addUserTerminal(req.params.account, req.params.deviceId);
-      
-      if(addResult.errors && addResult.errors.length > 0) {
-        throw new Error(addResult.errors[0].errorMessage);
-      }
-  
-      // Then get the terminal ID by listing and filtering
-      const terminals = await API.listUserTerminals(req.params.account, `?searchString=${req.params.deviceId}`);
-      
-      if(terminals.errors && terminals.errors.length > 0) {
-        throw new Error(terminals.errors[0].errorMessage);
-      }
-  
-      const terminal = terminals.content.results.find(t => t.kitSerialNumber === req.params.deviceId);
-      
-      if(!terminal) {
-        throw new Error('Terminal not found after adding kit');
-      }
-  
-      res.json({ 
-        userTerminalId: terminal.userTerminalId,
-        kitSerialNumber: terminal.kitSerialNumber
-      });
-  
-    } catch (err) {
-      console.error(err);
-      res.status(400).json({ error: err.message || 'Failed to add terminal' });
+// (e) attach terminal to service line
+/**
+* @swagger
+* /api/accounts/{account}/user-terminals/{terminalId}/{serviceLineNumber}:
+*   post:
+*     summary: Attach a user terminal to a service line
+*     tags: [UserTerminals]
+*     parameters:
+*       - in: path
+*         name: account
+*         required: true
+*         schema: { type: string }
+*       - in: path
+*         name: terminalId
+*         required: true
+*         schema: { type: string }
+*       - in: path
+*         name: serviceLineNumber
+*         required: true
+*         schema: { type: string }
+*     responses:
+*       200: { description: Terminal attached }
+*/
+app.post('/api/accounts/:account/user-terminals/:terminalId/:serviceLineNumber', async (req, res) => {
+  try {
+    const data = await API.attachTerminal(req.params.account, req.params.terminalId, req.params.serviceLineNumber);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: err.response?.data || err.message });
+  }
+});
+
+// (f) one‑shot activation
+/**
+* @swagger
+* /api/activate:
+*   post:
+*     summary: One‑shot activation (address → service‑line → attach)
+*     tags: [Activation]
+*     requestBody:
+*       required: true
+*       content:
+*         application/json:
+*           schema: { $ref: '#/components/schemas/ActivationRequest' }
+*     responses:
+*       200:
+*         description: Activation succeeded
+*         content:
+*           application/json:
+*             schema: { $ref: '#/components/schemas/ActivationResponse' }
+*       400: { description: Validation error }
+*/
+app.post('/api/activate', async (req, res) => {
+  const { accountNumber, address, kitNumber, nickname } = req.body;
+  try {
+    const result = await activateStarlink({ accountNumber, address, kitNumber, nickname });
+    res.json({ status: 'activated', ...result });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || 'Activation failed' });
+  }
+});
+
+/**
+* @swagger
+* /api/accounts/{account}/user-terminals/{deviceId}:
+*   post:
+*     summary: Add a user terminal to an account
+*     tags: [UserTerminals]
+*     parameters:
+*       - in: path
+*         name: account
+*         required: true
+*         schema: { type: string }
+*       - in: path  
+*         name: deviceId
+*         required: true
+*         schema: { type: string }
+*     responses:
+*       200:
+*         description: Terminal added successfully
+*         content:
+*           application/json:
+*             schema:
+*               type: object
+*               properties:
+*                 userTerminalId: { type: string }
+*/
+app.post('/api/accounts/:account/user-terminals/:deviceId', async (req, res) => {
+  try {
+    // First add the terminal
+    const addResult = await API.addUserTerminal(req.params.account, req.params.deviceId);
+
+    if (addResult.errors && addResult.errors.length > 0) {
+      throw new Error(addResult.errors[0].errorMessage);
     }
-  });
+
+    // Then get the terminal ID by listing and filtering
+    const terminals = await API.listUserTerminals(req.params.account, `?searchString=${req.params.deviceId}`);
+
+    if (terminals.errors && terminals.errors.length > 0) {
+      throw new Error(terminals.errors[0].errorMessage);
+    }
+
+    const terminal = terminals.content.results.find(t => t.kitSerialNumber === req.params.deviceId);
+
+    if (!terminal) {
+      throw new Error('Terminal not found after adding kit');
+    }
+
+    res.json({
+      userTerminalId: terminal.userTerminalId,
+      kitSerialNumber: terminal.kitSerialNumber
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || 'Failed to add terminal' });
+  }
+});
 
 
 /**
@@ -752,7 +752,7 @@ app.post('/api/notifications/activation', async (req, res) => {
       companyName,
       regionCode
     } = req.body;
-    
+
     const htmlTemplate = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
         <h1 style="color: #2c3e50; text-align: center;">New Starlink Activation Complete 🛰️</h1>
@@ -791,11 +791,11 @@ app.post('/api/notifications/activation', async (req, res) => {
       </div>
     `;
 
-    const mailjet =  new Mailjet({
+    const mailjet = new Mailjet({
       apiKey: process.env.MJ_APIKEY_PUBLIC,
       apiSecret: process.env.MJ_APIKEY_PRIVATE
     });
-  
+
     const request = await mailjet
       .post("send", { version: 'v3.1' })
       .request({
@@ -816,16 +816,16 @@ app.post('/api/notifications/activation', async (req, res) => {
           }
         ]
       });
-  
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Activation notification email sent successfully'
     });
-  
+
   } catch (error) {
     console.error('Email notification error:', error);
-    res.status(400).json({ 
-      success: false, 
+    res.status(400).json({
+      success: false,
       error: error.message || 'Failed to send activation notification'
     });
   }
@@ -873,43 +873,69 @@ app.post('/api/notifications/activation', async (req, res) => {
 app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
   try {
     const { account, kitNumber } = req.params;
-    
-    // Search for terminals with the given kit number
-    const terminals = await API.listUserTerminals(account, `?searchString=${kitNumber}`);
-    
-    if (terminals.errors && terminals.errors.length > 0) {
-      throw new Error(terminals.errors[0].errorMessage);
-    }
 
-    const terminal = terminals.content.results.find(t => t.active  == true);
-    
-    if (!terminal) {
-      return res.json({
-        isRegistered: false,
-        message: 'Kit number not registered to this account'
-      });
+    // Search for terminals with the given kit number
+    // const terminals = await API.listUserTerminals(account, `?searchString=${kitNumber}`);
+
+    // if (terminals.errors && terminals.errors.length > 0) {
+    //   throw new Error(terminals.errors[0].errorMessage);
+    // }
+
+    // const terminal = terminals.content.results.find(t => t.active  == true);
+
+    // if (!terminal) {
+    //   return res.json({
+    //     isRegistered: false,
+    //     message: 'Kit number not registered to this account'
+    //   });
+    // }
+
+
+    //add the kitNumber to account, return error or don't 
+
+    const result = await API.addUserTerminal(account, kitNumber);
+    const userTerminals = await API.listUserTerminals(account, `?searchString=${kitNumber}`);
+
+    if (userTerminals.errors && userTerminals.errors.length > 0) {
+      throw new Error(userTerminals.errors[0].errorMessage);
+    }
+    const terminal = userTerminals.content.results.find(t => t.kitSerialNumber === kitNumber && t.active === true);
+
+    if (result.errors && result.errors.length > 0) {
+      if (!terminal) {
+        return res.json({
+          isRegistered: true,
+          message: result.errors[0].errorMessage || 'Kit number not registered to this account'
+        })
+      }
+
+      else {
+        return res.json({
+          isRegistered: false,
+          existing: true,
+          terminalDetails: terminal
+        });
+      }
+
     }
 
     return res.json({
-      isRegistered: true,
-      terminal: {
-        userTerminalId: terminal.userTerminalId,
-        kitSerialNumber: terminal.kitSerialNumber,
-        status: terminal.status,
-        serviceLineNumber: terminal.serviceLineNumber || null
-      }
+      isRegistered: false,
+      terminalDetails: terminal,
+      existing : false,
     });
+
 
   } catch (err) {
     console.error(err);
-    res.status(400).json({ 
-      error: err.message || 'Failed to validate kit number' 
+    res.status(400).json({
+      error: err.message || 'Failed to validate kit number'
     });
   }
 });
 app.get('/', async (req, res) => {
 
-  res.send({message : 'Starlink Activation Server is running 🚀'});
+  res.send({ message: 'Starlink Activation Server is running 🚀', token: await getBearerToken() });
 });
 
 app.get('/api/health', (req, res) => {
@@ -917,5 +943,5 @@ app.get('/api/health', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`API listening on ${port}`);
+  console.log(`API listening on ${port}`);
 });
