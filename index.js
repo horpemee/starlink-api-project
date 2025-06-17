@@ -12,13 +12,16 @@ const app = express();
 const port = 3000;
 const cache = { token: null, exp: 0 };
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
+// const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://unconnected.support';
+
 
 app.use(cors({
   origin: FRONTEND_URL,
   credentials: true
 }));
 
+ 
 // Middleware to parse JSON and URL encoded data
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -40,7 +43,9 @@ const swaggerSpec = swaggerJsdoc({
       description:
         'Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.'
     },
-    servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+    // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+    servers: [{ url: 'http://localhost:3000' }, { url: "https://api.unconnected.support/" }]
+
   },
   // Scan this file for JSDoc @swagger blocks
   apis: [path.join(__dirname, 'index.js')]
