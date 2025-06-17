@@ -13,33 +13,15 @@ const port = 3000;
 const cache = { token: null, exp: 0 };
 
 // const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
-// const FRONTEND_URL = process.env.FRONTEND_URL || 'https://unconnected.support';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://unconnected.support';
 
-
-// app.use(cors({
-//   origin: FRONTEND_URL,
-//   credentials: true
-// }));
-
-const cors = require('cors');
-
-const allowedOrigins = [
-  'http://localhost:8080',
-  'https://unconnected.support'
-];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('Blocked by CORS:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: FRONTEND_URL,
   credentials: true
 }));
 
+ 
 // Middleware to parse JSON and URL encoded data
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
