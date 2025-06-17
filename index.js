@@ -911,7 +911,7 @@ app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
 
       else {
         return res.json({
-          isRegistered: false,
+          isRegistered: true,
           existing: true,
           terminalDetails: terminal
         });
