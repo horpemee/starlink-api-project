@@ -40,7 +40,9 @@ const swaggerSpec = swaggerJsdoc({
       description:
         'Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.'
     },
-    servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+    // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+    servers: [{ url: 'http://localhost:3000' }, { url: "https://api.unconnected.support/" }]
+
   },
   // Scan this file for JSDoc @swagger blocks
   apis: [path.join(__dirname, 'index.js')]
