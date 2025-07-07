@@ -898,6 +898,12 @@ app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
 
     //add the kitNumber to account, return error or don't 
 
+    /* 
+    - If they bought the dish from us, automatically starlink adds the kits into the account for us so we want to always check if it is added to the account then continue activation
+    - But if they didn’t buy the dish from us, then while they are activating, we should add the kit to their account and then activate
+    
+    */
+
     const result = await API.addUserTerminal(account, kitNumber);
     const userTerminals = await API.listUserTerminals(account, `?searchString=${kitNumber}`);
 
@@ -907,13 +913,16 @@ app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
     const terminal = userTerminals.content.results.find(t => t.kitSerialNumber === kitNumber && t.active === true);
 
     if (result.errors && result.errors.length > 0) {
+      // if adding to account failed and terminal does not exist, then it maybe has been added to the wrong account 
       if (!terminal) {
-        return res.json({
-          isRegistered: true,
+        return res.status(400).json({
+          isRegistered: false,
+          error: result.errors[0].errorMessage || 'Kit number not registered to this account',
           message: result.errors[0].errorMessage || 'Kit number not registered to this account'
         })
       }
-
+      // if adding to account failed but terminal exists, then it has been added to the account maybe by starlink: we continue activation
+      // OR a previously failed activation attempt has added the terminal to the account
       else {
         return res.json({
           isRegistered: true,
@@ -923,6 +932,8 @@ app.get('/api/accounts/:account/validate-kit/:kitNumber', async (req, res) => {
       }
 
     }
+
+    // If adding to account succeeded and terminal exists, then it has been added to the account by us: we continue activation
 
     return res.json({
       isRegistered: false,
