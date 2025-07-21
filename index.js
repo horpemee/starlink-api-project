@@ -43,8 +43,8 @@ const swaggerSpec = swaggerJsdoc({
       description:
         'Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.'
     },
-    // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
-    servers: [{ url: 'http://localhost:3000' }, { url: "https://api.unconnected.support/" }]
+    servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+    // servers: [{ url: 'http://localhost:3000' }, { url: "https://api.unconnected.support/" }]
 
   },
   // Scan this file for JSDoc @swagger blocks
@@ -276,7 +276,9 @@ app.delete('/api/accounts/:account/user-terminals/:deviceId', async (req, res) =
 app.get('/api/accounts', async (req, res) => {
   try {
     const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
-    const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-2963072-59271-18'];
+    const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-2963072-59271-18', 'ACC-2866843-91611-20', 'ACC-7393314-12390-10'
+
+];
     // Filter out unwanted accounts
     data.content.results = data.content.results.filter(account => !unwantedAccounts.includes(account.accountNumber));
 
