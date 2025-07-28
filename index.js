@@ -12,8 +12,8 @@ const app = express();
 const port = 3000;
 const cache = { token: null, exp: 0 };
 
-// const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://unconnected.support';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
+// const FRONTEND_URL = process.env.FRONTEND_URL || 'https://unconnected.support';
 
 
 app.use(cors({
