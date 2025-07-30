@@ -278,7 +278,7 @@ app.delete('/api/accounts/:account/user-terminals/:deviceId', async (req, res) =
 app.get('/api/accounts', async (req, res) => {
   try {
     const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
-    const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-2963072-59271-18', 'ACC-2866843-91611-20', 'ACC-7393314-12390-10'
+    const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-2963072-59271-18', 'ACC-2866843-91611-20', 'ACC-7393314-12390-10', 'ACC-7071161-50554-7', 'ACC-6814367-50278-22', 'ACC-7580055-64428-19'
 
 ];
     // Filter out unwanted accounts
