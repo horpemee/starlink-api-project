@@ -778,7 +778,7 @@ app.post('/api/notifications/activation', async (req, res) => {
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
           <h2 style="color: #34495e; margin-top: 0;">Terminal &amp; Kit Details</h2>
           <p style="margin: 5px 0;"><strong>Kit Number:</strong> ${kitNumber}</p>
-          <p style="margin: 5px 0;"><strong>Dish Origin:</strong>${dishOrigin ? dishOrigin : 'Not specified'}</p>
+          <p style="margin: 5px 0;"><strong>Dish Origin:</strong> ${dishOrigin ? dishOrigin : 'Not specified'}</p>
         </div>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
