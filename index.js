@@ -759,7 +759,8 @@ app.post('/api/notifications/activation', async (req, res) => {
       googlePlusCode,
       regionLabel,
       companyName,
-      regionCode
+      regionCode,
+      dishOrigin
     } = req.body;
 
     const htmlTemplate = `
