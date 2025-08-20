@@ -278,7 +278,7 @@ app.delete('/api/accounts/:account/user-terminals/:deviceId', async (req, res) =
 app.get('/api/accounts', async (req, res) => {
   try {
     const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
-    const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-2963072-59271-18', 'ACC-2866843-91611-20', 'ACC-7393314-12390-10', 'ACC-7071161-50554-7', 'ACC-6814367-50278-22', 'ACC-7580055-64428-19'
+    const unwantedAccounts = ['ACC-3196223-39704-14', 'ACC-2959688-22725-30', 'ACC-8653096-80387-28', 'ACC-2963072-59271-18', 'ACC-2866843-91611-20', 'ACC-7393314-12390-10', 'ACC-7071161-50554-7', 'ACC-6814367-50278-22', 'ACC-7580055-64428-19'
 
 ];
     // Filter out unwanted accounts
@@ -777,6 +777,7 @@ app.post('/api/notifications/activation', async (req, res) => {
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
           <h2 style="color: #34495e; margin-top: 0;">Terminal &amp; Kit Details</h2>
           <p style="margin: 5px 0;"><strong>Kit Number:</strong> ${kitNumber}</p>
+          <p style="margin: 5px 0;"><strong>Dish Origin:</strong> ${dishOrigin}</p>
         </div>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
