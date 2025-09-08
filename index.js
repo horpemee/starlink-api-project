@@ -303,6 +303,11 @@ app.get('/api/accounts', async (req, res) => {
       return account;
     });
 
+    // Sort the results alphabetically by the regionCode
+    data.content.results.sort((a, b) => {
+      return a.regionCode.localeCompare(b.regionCode);
+    });
+
     res.json(data);
   } catch (err) {
     console.error(err.response?.data || err.message);
