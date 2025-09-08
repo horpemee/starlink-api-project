@@ -288,7 +288,7 @@ app.get('/api/accounts', async (req, res) => {
     const accountRenames = {
       'ACC-6814367-50278-22': 'Unconnected Partner 1 Philippines',
       'ACC-7071161-50554-7': 'Unconnected Partner 2 Philippines',
-      'ACC-DF-8910267-22774-3': 'Unconnected Partner 3 Mex',
+      'ACC-DF-8910267-22774-3': 'Unconnected Partner 3 Mexico',
       // 'ACC-7580055-64428-19': 'Unconnected Partner 3',
       'ACC-7393314-12390-10': 'TESTER API ACCOUNT'
     }
