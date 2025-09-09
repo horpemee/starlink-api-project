@@ -157,6 +157,7 @@ const API = process.env.NODE_ENV === 'development' ? MockAPI : {
       'ACC-7580055-64428-19': 'PH',
       'ACC-7071161-50554-7': 'PH',
       'ACC-7393314-12390-10': 'NG',
+      'ACC-DF-8910267-22774-3': 'MX'
     }
     const regionCode = accountRenames[acct] || payload.regionCode;
     console.log("[createAddress] called with ::", acct, payload, formattedAddress, administrativeAreaCode, regionCode, latitude, longitude)
