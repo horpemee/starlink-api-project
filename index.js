@@ -290,11 +290,11 @@ app.get('/api/accounts', async (req, res) => {
 
     // account number to rename mapping
     const accountRenames = {
-      'ACC-6814367-50278-22': 'PCS',
-      'ACC-7071161-50554-7': 'WL',
+      'ACC-6814367-50278-22': 'PCSWiFi4Every1',
+      'ACC-7071161-50554-7': 'WirelessLink',
       'ACC-DF-8910267-22774-3': 'Comnet',
       'ACC-DF-8944908-16857-17': 'Cominicalo',
-      'ACC-DF-8914998-17079-20': 'Kakuma',
+      'ACC-DF-8914998-17079-20': 'KakumaVentures',
       // 'ACC-7580055-64428-19': 'Unconnected Partner 3',
       'ACC-7393314-12390-10': 'TESTER API ACCOUNT'
     }
