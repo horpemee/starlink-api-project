@@ -649,28 +649,18 @@ const API =
           const latitude = googleResult.geometry.location.lat;
           const longitude = googleResult.geometry.location.lng;
 
-          // Build new payload with required Starlink API parameters
-          // Reverse regionCode to actual region code
-          const accountRenames = {
-            "ACC-6814367-50278-22": "PH",
-            "ACC-7580055-64428-19": "PH",
-            "ACC-7071161-50554-7": "PH",
-            "ACC-7393314-12390-10": "NG",
-            "ACC-DF-8910267-22774-3": "MX",
-            "ACC-DF-8944908-16857-17": "MX",
-            "ACC-DF-8914998-17079-20": "KE"
-          };
-          const regionCode = accountRenames[acct] || payload.regionCode;
-          console.log(
-            "[createAddress] called with ::",
-            acct,
-            payload,
-            formattedAddress,
-            administrativeAreaCode,
-            regionCode,
-            latitude,
-            longitude
-          );
+    // Build new payload with required Starlink API parameters
+    // Reverse regionCode to actual region code
+    const accountRenames = {
+      'ACC-6814367-50278-22': 'PH',
+      'ACC-7580055-64428-19': 'PH',
+      'ACC-7071161-50554-7': 'PH',
+      'ACC-7393314-12390-10': 'NG',
+    }
+    const regionCode = accountRenames[acct] || payload.regionCode;
+    console.log("[createAddress] called with ::", acct, payload, formattedAddress, administrativeAreaCode, regionCode, latitude, longitude)
+
+
 
           const newPayload = {
             accountNumber: acct,
@@ -821,18 +811,17 @@ app.delete(
 app.get("/api/accounts", async (req, res) => {
   try {
     const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
-    const unwantedAccounts = [
-      "ACC-3196223-39704-14",
-      "ACC-2959688-22725-30",
-      "ACC-8653096-80387-28",
-      "ACC-2963072-59271-18",
-      "ACC-2866843-91611-20",
-      "ACC-7393314-12390-10",
-      "ACC-DF-8944908-16857-17",
-      "ACC-7580055-64428-19"
-      
-      
-    ];
+const unwantedAccounts = [
+  'ACC-3196223-39704-14',
+  'ACC-2959688-22725-30',
+  'ACC-8653096-80387-28',
+  'ACC-2963072-59271-18',
+  'ACC-2866843-91611-20',
+  'ACC-7071161-50554-7',
+  'ACC-6814367-50278-22',
+  'ACC-7393314-12390-10',
+  'ACC-7580055-64428-19'
+];
     // Filter out unwanted accounts
     data.content.results = data.content.results.filter(
       (account) => !unwantedAccounts.includes(account.accountNumber)
@@ -840,15 +829,11 @@ app.get("/api/accounts", async (req, res) => {
 
     // account number to rename mapping
     const accountRenames = {
-      'ACC-6814367-50278-22': 'PCSWiFi4Every1',
-      'ACC-7071161-50554-7': 'WirelessLink',
-      'ACC-DF-8910267-22774-3': 'Comnet',
-      'ACC-DF-8944908-16857-17': 'CMC Network',
-      'ACC-DF-8914998-17079-20': 'KakumaVentures',
-      // 'ACC-7580055-64428-19': 'Unconnected Partner 3',
-      'ACC-7393314-12390-10': 'TESTER API ACCOUNT'
-    
-    };
+      'ACC-6814367-50278-22': 'Unconnected Partner 1',
+      'ACC-7580055-64428-19': 'Unconnected Partner 2',
+      'ACC-7071161-50554-7': 'Unconnected Partner 3',
+      'ACC-7393314-12390-10': 'TESTER API ACCOUNT',
+    }
     // Rename accounts based on mapping
     data.content.results = data.content.results.map((account) => {
       if (accountRenames[account.accountNumber]) {
@@ -858,6 +843,11 @@ app.get("/api/accounts", async (req, res) => {
         };
       }
       return account;
+    });
+
+    // Sort the results alphabetically by the regionCode
+    data.content.results.sort((a, b) => {
+      return a.regionCode.localeCompare(b.regionCode);
     });
 
 
