@@ -22,9 +22,9 @@ const mailjet = new Mailjet({
   apiSecret: process.env.MJ_APIKEY_PRIVATE,
 });
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
+// const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 
-// const FRONTEND_URL = process.env.FRONTEND_URL || 'https://unconnected.support';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://unconnected.support';
 
 app.use(
   cors({
