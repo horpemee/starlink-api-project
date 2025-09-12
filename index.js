@@ -827,7 +827,7 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-8653096-80387-28",
       "ACC-2963072-59271-18",
       "ACC-2866843-91611-20",
-      "ACC-7393314-12390-10",
+      // "ACC-7393314-12390-10",
       "ACC-DF-8944908-16857-17",
       "ACC-7580055-64428-19"
       
@@ -1367,6 +1367,8 @@ app.post("/api/notifications/activation", async (req, res) => {
       companyName,
       regionCode,
       dishOrigin,
+      impactType,
+      otherImpactType,
     } = req.body;
 
     const htmlTemplate = `
@@ -1387,6 +1389,7 @@ app.post("/api/notifications/activation", async (req, res) => {
           <p style="margin: 5px 0;"><strong>Dish Origin:</strong> ${
             dishOrigin ? dishOrigin : "Not specified"
           }</p>
+          <p style="margin: 5px 0;"><strong>Impact Type:</strong> ${impactType}${otherImpactType ? ` (${otherImpactType})` : ''}</p>
         </div>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
