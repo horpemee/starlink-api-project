@@ -828,7 +828,7 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-2963072-59271-18",
       "ACC-2866843-91611-20",
       "ACC-7393314-12390-10",
-      "ACC-DF-8944908-16857-17",
+      // "ACC-DF-8944908-16857-17",
       "ACC-7580055-64428-19"
       
       
@@ -843,7 +843,7 @@ app.get("/api/accounts", async (req, res) => {
       'ACC-6814367-50278-22': 'PCSWiFi4Every1',
       'ACC-7071161-50554-7': 'WirelessLink',
       'ACC-DF-8910267-22774-3': 'Comnet',
-      'ACC-DF-8944908-16857-17': 'CMC Service Network',
+      'ACC-DF-8944908-16857-17': 'CMC Network',
       'ACC-DF-8914998-17079-20': 'KakumaVentures',
       // 'ACC-7580055-64428-19': 'Unconnected Partner 3',
       'ACC-7393314-12390-10': 'TESTER API ACCOUNT'
