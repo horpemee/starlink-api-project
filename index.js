@@ -70,11 +70,7 @@ app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // PostgreSQL Pool Configuration
 const pool = new Pool({
-  user: process.env.PG_USER || "postgres",
-  host: process.env.PG_HOST || "localhost",
-  database: process.env.PG_DATABASE || "starlink_activation",
-  password: process.env.PG_PASSWORD || "your_postgres_password",
-  port: process.env.PG_PORT || 5432,
+ connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false // Allow self-signed certs for testing
   },
