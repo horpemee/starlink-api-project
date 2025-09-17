@@ -75,6 +75,13 @@ const pool = new Pool({
   database: process.env.PG_DATABASE || "starlink_activation",
   password: process.env.PG_PASSWORD || "your_postgres_password",
   port: process.env.PG_PORT || 5432,
+  ssl: {
+    rejectUnauthorized: false // Allow self-signed certs for testing
+  },
+});
+
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
 });
 
 // Helper Function: Get Bearer Token
