@@ -659,7 +659,9 @@ const API =
             "ACC-7580055-64428-19": "PH",
             "ACC-7071161-50554-7": "PH",
             "ACC-DF-9012567-86171-1": "PH",
+            "ACC-DF-9012511-23590-86" : "PH",
             "ACC-7393314-12390-10": "NG",
+            "ACC-DF-9012430-88305-91": "NG",
             "ACC-DF-8910267-22774-3": "MX",
             "ACC-DF-8944908-16857-17": "MX",
             "ACC-DF-8914998-17079-20": "KE"
@@ -835,6 +837,7 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-DF-9022857-69501-2",
       "ACC-7580055-64428-19",
       "ACC-DF-8944908-16857-17",
+      "ACC-DF-9012511-23590-86",
       "ACC-DF-8914998-17079-20"
       
       
@@ -852,6 +855,8 @@ app.get("/api/accounts", async (req, res) => {
       'ACC-DF-8944908-16857-17': 'CMC Network',
       'ACC-DF-8914998-17079-20': 'KakumaVentures',
       'ACC-DF-9012567-86171-1': 'Yuno Network',
+      'ACC-DF-9012430-88305-91': 'Eritel',
+      'ACC-DF-9012511-23590-86': 'Globe',
       // 'ACC-7580055-64428-19': 'Unconnected Partner 3',
       'ACC-7393314-12390-10': 'TESTER API ACCOUNT'
     
