@@ -37,7 +37,10 @@ app.use(
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 const multer = require("multer");
-const upload = multer({ storage: multer.memoryStorage() });
+const fs = require('fs');
+const path = require('path');
+const upload = multer({ dest: 'uploads/' });
+// const upload = multer({ storage: multer.memoryStorage() });
 
 // YOUR Starlink Credentials - STORE THESE SAFELY
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -78,6 +81,57 @@ const pool = new Pool({
 
 pool.on('error', (err, client) => {
   console.error('Unexpected error on idle client', err);
+});
+
+
+// Multer for photo uploads (max 10 files)
+
+app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
+  try {
+    const {
+      kitNumber, company, reporterName, reporterEmail, region,
+      peopleCovered, peopleAccessing, civicLocation, otherLocation,
+      freeAccessUsers, additionalComments
+    } = req.body;
+
+    // Validate required fields
+    if (!kitNumber || !company || !reporterName || !reporterEmail || !region ||
+        !peopleCovered || !peopleAccessing || !civicLocation || !freeAccessUsers) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Handle photos (save and get paths)
+    let photoPaths = [];
+    if (req.files && req.files.length > 0) {
+      photoPaths = req.files.map(file => {
+        const newPath = path.join('uploads', `${Date.now()}-${file.originalname}`);
+        fs.renameSync(file.path, newPath);
+        return newPath;
+      });
+    }
+
+    // Insert into reports table
+    const result = await pool.query(`
+      INSERT INTO public.reports (
+        kit_number, company, reporter_name, reporter_email, region,
+        people_covered, people_accessing, civic_location, other_location,
+        free_access_users, additional_comments, infra_photos
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING id;
+    `, [
+      kitNumber, company, reporterName, reporterEmail, region,
+      parseInt(peopleCovered), parseInt(peopleAccessing), civicLocation, otherLocation,
+      freeAccessUsers, additionalComments, photoPaths
+    ]);
+
+    // Optional: Email notification (using your Mailjet setup)
+    // Add Mailjet code here if desired, e.g., notify admin of new report
+
+    res.json({ success: true, message: 'Report submitted', reportId: result.rows[0].id });
+  } catch (error) {
+    console.error('Report error:', error);
+    res.status(500).json({ error: 'Failed to submit report' });
+  }
 });
 
 // Helper Function: Get Bearer Token
