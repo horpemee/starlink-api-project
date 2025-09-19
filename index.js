@@ -95,7 +95,9 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
 
     // Validate required fields
     if (!kitNumber || !company || !reporterName || !reporterEmail || !region ||
-        !peopleCovered || !peopleAccessing || !civicLocation || !freeAccessUsers) {
+        !peopleCovered || !peopleAccessing || !civicLocation ||
+        (civicLocation === 'Others' && !otherLocation) ||
+        !freeAccessUsers || !additionalComments || !req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -132,6 +134,26 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
     res.status(500).json({ error: 'Failed to submit report' });
   }
 });
+
+app.get('/api/reports', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        id, kit_number, company, reporter_name, reporter_email, region,
+        people_covered, people_accessing, civic_location, other_location,
+        free_access_users, additional_comments, infra_photos, created_at
+      FROM public.reports
+      ORDER BY created_at DESC;
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching reports:', error);
+    res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+// NEW: Serve images from uploads folder statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Helper Function: Get Bearer Token
 async function getBearerToken() {
