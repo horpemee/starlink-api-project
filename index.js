@@ -38,7 +38,6 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 const multer = require("multer");
 const fs = require('fs');
-const path = require('path');
 const upload = multer({ dest: 'uploads/' });
 // const upload = multer({ storage: multer.memoryStorage() });
 
