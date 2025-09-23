@@ -126,7 +126,67 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
     ]);
 
     // Optional: Email notification (using your Mailjet setup)
+
     // Add Mailjet code here if desired, e.g., notify admin of new report
+
+    const baseUrl = process.env.API_BASE_URL || 'https://api.unconnected.support';
+    const photoLinks = photoPaths.map(path => `${baseUrl}/${path}`).join('<br/>');
+
+    const htmlTemplate = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+        <h1 style="color: #2c3e50; text-align: center;">New Impact Report Submitted 📊</h1>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h2 style="color: #34495e; margin-top: 0;">Reporter Details</h2>
+          <p style="margin: 5px 0;"><strong>Name:</strong> ${reporterName}</p>
+          <p style="margin: 5px 0;"><strong>Email:</strong> ${reporterEmail}</p>
+          <p style="margin: 5px 0;"><strong>Company:</strong> ${company}</p>
+        </div>
+  
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h2 style="color: #34495e; margin-top: 0;">Report Details</h2>
+          <p style="margin: 5px 0;"><strong>Kit Number:</strong> ${kitNumber}</p>
+          <p style="margin: 5px 0;"><strong>Region:</strong> ${region}</p>
+          <p style="margin: 5px 0;"><strong>People Covered:</strong> ${peopleCovered}</p>
+          <p style="margin: 5px 0;"><strong>People Accessing:</strong> ${peopleAccessing}</p>
+          <p style="margin: 5px 0;"><strong>Civic Location:</strong> ${civicLocation}${otherLocation ? ` (${otherLocation})` : ''}</p>
+          <p style="margin: 5px 0;"><strong>Free Access Users:</strong> ${freeAccessUsers}</p>
+          <p style="margin: 5px 0;"><strong>Additional Comments:</strong> ${additionalComments}</p>
+        </div>
+  
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h2 style="color: #34495e; margin-top: 0;">Infrastructure Photos</h2>
+          ${photoPaths.length > 0 ? photoPaths.map((path, index) => `
+            <p style="margin: 5px 0;"><a href="${baseUrl}/${path}" target="_blank">View Photo ${index + 1}</a></p>
+          `).join('') : '<p>No photos uploaded</p>'}
+        </div>
+  
+        <p style="color: #7f8c8d; font-size: 12px; text-align: center; margin-top: 20px;">
+          This is an automated message from the Unconnected Impact Reporting System
+        </p>
+      </div>
+    `;
+
+    const mailRequest = await mailjet.post("send", { version: "v3.1" }).request({
+      Messages: [
+        {
+          From: {
+            Email: process.env.EMAIL_USER || "support@unconnected.org",
+            Name: "Unconnected Impact Reporting",
+          },
+          To: [
+            {
+              Email: "support@unconnected.org",
+              Name: "Unconnected Support",
+            },
+          ],
+          Subject: `New Impact Report - Kit ${kitNumber}`,
+          HTMLPart: htmlTemplate,
+        },
+      ],
+    });
+
+    console.log("Mailjet response:", mailRequest.body);
 
     res.json({ success: true, message: 'Report submitted', reportId: result.rows[0].id });
   } catch (error) {
