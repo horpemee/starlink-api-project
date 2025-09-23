@@ -134,24 +134,24 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
 
     const htmlTemplate = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
-        <h1 style="color: #2c3e50; text-align: center;">New Impact Report Submitted 📊</h1>
+        <h1 style="color: #2c3e50; text-align: center;">New Impact Report Submitted </h1>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
           <h2 style="color: #34495e; margin-top: 0;">Reporter Details</h2>
           <p style="margin: 5px 0;"><strong>Name:</strong> ${reporterName}</p>
           <p style="margin: 5px 0;"><strong>Email:</strong> ${reporterEmail}</p>
-          <p style="margin: 5px 0;"><strong>Company:</strong> ${company}</p>
+          <p style="margin: 5px 0;"><strong>Name of company:</strong> ${company}</p>
         </div>
   
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
           <h2 style="color: #34495e; margin-top: 0;">Report Details</h2>
-          <p style="margin: 5px 0;"><strong>Kit Number:</strong> ${kitNumber}</p>
+          <p style="margin: 5px 0;"><strong>Kit number:</strong> ${kitNumber}</p>
           <p style="margin: 5px 0;"><strong>Region:</strong> ${region}</p>
           <p style="margin: 5px 0;"><strong>People Covered:</strong> ${peopleCovered}</p>
-          <p style="margin: 5px 0;"><strong>People Accessing:</strong> ${peopleAccessing}</p>
-          <p style="margin: 5px 0;"><strong>Civic Location:</strong> ${civicLocation}${otherLocation ? ` (${otherLocation})` : ''}</p>
-          <p style="margin: 5px 0;"><strong>Free Access Users:</strong> ${freeAccessUsers}</p>
-          <p style="margin: 5px 0;"><strong>Additional Comments:</strong> ${additionalComments}</p>
+          <p style="margin: 5px 0;"><strong>People accessing infrastructure:</strong> ${peopleAccessing}</p>
+          <p style="margin: 5px 0;"><strong>Civic location:</strong> ${civicLocation}${otherLocation ? ` (${otherLocation})` : ''}</p>
+          <p style="margin: 5px 0;"><strong>People accessing for free:</strong> ${freeAccessUsers}</p>
+          <p style="margin: 5px 0;"><strong>Additional comments:</strong> ${additionalComments}</p>
         </div>
   
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
@@ -162,7 +162,7 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
         </div>
   
         <p style="color: #7f8c8d; font-size: 12px; text-align: center; margin-top: 20px;">
-          This is an automated message from the Unconnected Impact Reporting System
+          This is an automated message from the Unconnected.org impact reporting system
         </p>
       </div>
     `;
