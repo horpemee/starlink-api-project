@@ -147,10 +147,10 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
           <h2 style="color: #34495e; margin-top: 0;">Report Details</h2>
           <p style="margin: 5px 0;"><strong>Kit number:</strong> ${kitNumber}</p>
           <p style="margin: 5px 0;"><strong>Region:</strong> ${region}</p>
-          <p style="margin: 5px 0;"><strong>People Covered:</strong> ${peopleCovered}</p>
-          <p style="margin: 5px 0;"><strong>People accessing infrastructure:</strong> ${peopleAccessing}</p>
+          <p style="margin: 5px 0;"><strong>Number of people covered:</strong> ${peopleCovered}</p>
+          <p style="margin: 5px 0;"><strong>Number of people accessing infrastructure:</strong> ${peopleAccessing}</p>
           <p style="margin: 5px 0;"><strong>Civic location:</strong> ${civicLocation}${otherLocation ? ` (${otherLocation})` : ''}</p>
-          <p style="margin: 5px 0;"><strong>People accessing for free:</strong> ${freeAccessUsers}</p>
+          <p style="margin: 5px 0;"><strong>Number of people accessing for free:</strong> ${freeAccessUsers}</p>
           <p style="margin: 5px 0;"><strong>Additional comments:</strong> ${additionalComments}</p>
         </div>
   
