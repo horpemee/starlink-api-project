@@ -122,7 +122,7 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
     `, [
       kitNumber, company, reporterName, reporterEmail, region,
       parseInt(peopleCovered), parseInt(peopleAccessing), civicLocation, otherLocation,
-      freeAccessUsers, additionalComments, photoPaths
+      parseInt(freeAccessUsers), additionalComments, photoPaths
     ]);
 
     // Optional: Email notification (using your Mailjet setup)
@@ -167,6 +167,7 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
       </div>
     `;
 
+    try{
     const mailRequest = await mailjet.post("send", { version: "v3.1" }).request({
       Messages: [
         {
@@ -189,9 +190,14 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
     console.log("Mailjet response:", mailRequest.body);
 
     res.json({ success: true, message: 'Report submitted', reportId: result.rows[0].id });
+ } catch (emailError) {
+      console.error('Email sending failed:', emailError);
+    }
+
+    res.json({ success: true, message: 'Report submitted', reportId: result.rows[0].id });
   } catch (error) {
     console.error('Report error:', error);
-    res.status(500).json({ error: 'Failed to submit report' });
+    res.status(500).json({ error: 'Failed to submit report', details: error.stack });
   }
 });
 
