@@ -341,6 +341,92 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+
+// New Bulk Endpoint
+app.post('/api/reports/bulk', async (req, res) => {
+  try {
+    const { reports } = req.body;
+
+    if (!Array.isArray(reports) || reports.length === 0) {
+      return res.status(400).json({ error: 'Invalid reports array' });
+    }
+
+    // Validate each report fully
+    const requiredFields = ['kitNumber', 'company', 'reporterName', 'reporterEmail', 'region', 'peopleCovered', 'peopleAccessing', 'civicLocation', 'freeAccessUsers', 'additionalComments'];
+    for (const report of reports) {
+      requiredFields.forEach(field => {
+        if (report[field] === undefined || report[field] === null) {
+          throw new Error(`Missing field ${field} in report for kit ${report.kitNumber}`);
+        }
+      });
+      if (report.civicLocation === 'Others' && !report.otherLocation) {
+        throw new Error(`otherLocation required for civicLocation="Others" in kit ${report.kitNumber}`);
+      }
+      // Type checks (basic)
+      if (isNaN(report.peopleCovered) || isNaN(report.peopleAccessing) || isNaN(report.freeAccessUsers)) {
+        throw new Error(`Numeric fields must be numbers in kit ${report.kitNumber}`);
+      }
+    }
+
+    // Insert in transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const insertedIds = [];
+      for (const report of reports) {
+        const result = await client.query(`
+          INSERT INTO public.reports (
+            kit_number, company, reporter_name, reporter_email, region,
+            people_covered, people_accessing, civic_location, other_location,
+            free_access_users, additional_comments, infra_photos
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING id;
+        `, [
+          report.kitNumber, report.company, report.reporterName, report.reporterEmail, report.region,
+          report.peopleCovered, report.peopleAccessing, report.civicLocation, report.otherLocation || null,
+          report.freeAccessUsers, report.additionalComments, [] // No photos
+        ]);
+        insertedIds.push(result.rows[0].id);
+      }
+      await client.query('COMMIT');
+
+      // Bulk Email Notification (summary)
+      const summary = reports.map(r => `Kit ${r.kitNumber}: ${r.peopleCovered} covered, ${r.additionalComments.substring(0, 50)}...`).join('<br/>');
+      const htmlTemplate = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+          <h1 style="color: #2c3e50; text-align: center;">New Bulk Impact Reports Submitted (${reports.length} kits)</h1>
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <h2 style="color: #34495e; margin-top: 0;">Summary</h2>
+            ${summary}
+          </div>
+          <!-- Add more details if needed -->
+        </div>
+      `;
+
+      const mailRequest = await mailjet.post("send", { version: "v3.1" }).request({
+        Messages: [
+          {
+            From: { Email: process.env.EMAIL_USER || "support@unconnected.org", Name: "Unconnected Impact Reporting" },
+            To: [{ Email: "support@unconnected.org", Name: "Unconnected Support" }],
+            Subject: `New Bulk Impact Reports (${reports.length} kits)`,
+            HTMLPart: htmlTemplate,
+          },
+        ],
+      });
+
+      res.json({ success: true, message: 'Bulk reports submitted', reportIds: insertedIds });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Bulk report error:', error);
+    res.status(500).json({ error: error.message || 'Failed to submit bulk reports' });
+  }
+});
+
 /**
  * @swagger
  * /api/auth/create-user:
