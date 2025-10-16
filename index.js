@@ -8,14 +8,13 @@ const swaggerJsdoc = require("swagger-jsdoc");
 const path = require("path");
 const cors = require("cors");
 const Mailjet = require("node-mailjet");
-const bcrypt = require('bcrypt');
+const bcrypt = require("bcrypt");
 const { Pool } = require("pg");
-const Papa = require('papaparse');
+const Papa = require("papaparse");
 const app = express();
 const port = 3000;
 const cache = { token: null, exp: 0 };
 const saltRounds = 10;
-
 
 // Mailjet configuration
 const mailjet = new Mailjet({
@@ -25,7 +24,7 @@ const mailjet = new Mailjet({
 
 // const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://unconnected.support';
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://unconnected.support";
 
 app.use(
   cors({
@@ -38,9 +37,9 @@ app.use(
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 const multer = require("multer");
-const fs = require('fs');
-const AdmZip = require('adm-zip'); // NEW: For ZIP extraction
-const upload = multer({ dest: 'uploads/' });
+const fs = require("fs");
+const AdmZip = require("adm-zip"); // NEW: For ZIP extraction
+const upload = multer({ dest: "uploads/" });
 // const upload = multer({ storage: multer.memoryStorage() });
 
 // YOUR Starlink Credentials - STORE THESE SAFELY
@@ -74,65 +73,101 @@ app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // PostgreSQL Pool Configuration
 const pool = new Pool({
- connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false // Allow self-signed certs for testing
+    rejectUnauthorized: false, // Allow self-signed certs for testing
   },
 });
 
-pool.on('error', (err, client) => {
-  console.error('Unexpected error on idle client', err);
+pool.on("error", (err, client) => {
+  console.error("Unexpected error on idle client", err);
 });
-
 
 // Multer for photo uploads (max 10 files)
 
-app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
+app.post("/api/report", upload.array("infraPhotos", 10), async (req, res) => {
   try {
     const {
-      kitNumber, company, reporterName, reporterEmail, region,
-      peopleCovered, peopleAccessing, civicLocation, otherLocation,
-      freeAccessUsers, additionalComments
+      kitNumber,
+      company,
+      reporterName,
+      reporterEmail,
+      region,
+      peopleCovered,
+      peopleAccessing,
+      civicLocation,
+      otherLocation,
+      freeAccessUsers,
+      additionalComments,
     } = req.body;
 
     // Validate required fields
-    if (!kitNumber || !company || !reporterName || !reporterEmail || !region ||
-        !peopleCovered || !peopleAccessing || !civicLocation ||
-        (civicLocation === 'Others' && !otherLocation) ||
-        !freeAccessUsers || !additionalComments || !req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (
+      !kitNumber ||
+      !company ||
+      !reporterName ||
+      !reporterEmail ||
+      !region ||
+      !peopleCovered ||
+      !peopleAccessing ||
+      !civicLocation ||
+      (civicLocation === "Others" && !otherLocation) ||
+      !freeAccessUsers ||
+      !additionalComments ||
+      !req.files ||
+      req.files.length === 0
+    ) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
     // Handle photos (save and get paths)
     let photoPaths = [];
     if (req.files && req.files.length > 0) {
-      photoPaths = req.files.map(file => {
-        const newPath = path.join('uploads', `${Date.now()}-${file.originalname}`);
+      photoPaths = req.files.map((file) => {
+        const newPath = path.join(
+          "uploads",
+          `${Date.now()}-${file.originalname}`
+        );
         fs.renameSync(file.path, newPath);
         return newPath;
       });
     }
 
     // Insert into reports table
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       INSERT INTO public.reports (
         kit_number, company, reporter_name, reporter_email, region,
         people_covered, people_accessing, civic_location, other_location,
         free_access_users, additional_comments, infra_photos
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING id;
-    `, [
-      kitNumber, company, reporterName, reporterEmail, region,
-      parseInt(peopleCovered), parseInt(peopleAccessing), civicLocation, otherLocation,
-      parseInt(freeAccessUsers), additionalComments, photoPaths
-    ]);
+    `,
+      [
+        kitNumber,
+        company,
+        reporterName,
+        reporterEmail,
+        region,
+        parseInt(peopleCovered),
+        parseInt(peopleAccessing),
+        civicLocation,
+        otherLocation,
+        parseInt(freeAccessUsers),
+        additionalComments,
+        photoPaths,
+      ]
+    );
 
     // Optional: Email notification (using your Mailjet setup)
 
     // Add Mailjet code here if desired, e.g., notify admin of new report
 
-    const baseUrl = process.env.API_BASE_URL || 'https://api.unconnected.support';
-    const photoLinks = photoPaths.map(path => `${baseUrl}/${path}`).join('<br/>');
+    const baseUrl =
+      process.env.API_BASE_URL || "https://api.unconnected.support";
+    const photoLinks = photoPaths
+      .map((path) => `${baseUrl}/${path}`)
+      .join("<br/>");
 
     const htmlTemplate = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
@@ -151,16 +186,28 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
           <p style="margin: 5px 0;"><strong>Region:</strong> ${region}</p>
           <p style="margin: 5px 0;"><strong>Number of people covered:</strong> ${peopleCovered}</p>
           <p style="margin: 5px 0;"><strong>Number of people accessing infrastructure:</strong> ${peopleAccessing}</p>
-          <p style="margin: 5px 0;"><strong>Civic location:</strong> ${civicLocation}${otherLocation ? ` (${otherLocation})` : ''}</p>
+          <p style="margin: 5px 0;"><strong>Civic location:</strong> ${civicLocation}${
+      otherLocation ? ` (${otherLocation})` : ""
+    }</p>
           <p style="margin: 5px 0;"><strong>Number of people accessing for free:</strong> ${freeAccessUsers}</p>
           <p style="margin: 5px 0;"><strong>Additional comments:</strong> ${additionalComments}</p>
         </div>
   
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
           <h2 style="color: #34495e; margin-top: 0;">Infrastructure Photos</h2>
-          ${photoPaths.length > 0 ? photoPaths.map((path, index) => `
-            <p style="margin: 5px 0;"><a href="${baseUrl}/${path}" target="_blank">View Photo ${index + 1}</a></p>
-          `).join('') : '<p>No photos uploaded</p>'}
+          ${
+            photoPaths.length > 0
+              ? photoPaths
+                  .map(
+                    (path, index) => `
+            <p style="margin: 5px 0;"><a href="${baseUrl}/${path}" target="_blank">View Photo ${
+                      index + 1
+                    }</a></p>
+          `
+                  )
+                  .join("")
+              : "<p>No photos uploaded</p>"
+          }
         </div>
   
         <p style="color: #7f8c8d; font-size: 12px; text-align: center; margin-top: 20px;">
@@ -169,41 +216,53 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
       </div>
     `;
 
-    try{
-    const mailRequest = await mailjet.post("send", { version: "v3.1" }).request({
-      Messages: [
-        {
-          From: {
-            Email: process.env.EMAIL_USER || "support@unconnected.org",
-            Name: "Unconnected Impact Reporting",
-          },
-          To: [
+    try {
+      const mailRequest = await mailjet
+        .post("send", { version: "v3.1" })
+        .request({
+          Messages: [
             {
-              Email: "support@unconnected.org",
-              Name: "Unconnected Support",
+              From: {
+                Email: process.env.EMAIL_USER || "support@unconnected.org",
+                Name: "Unconnected Impact Reporting",
+              },
+              To: [
+                {
+                  Email: "support@unconnected.org",
+                  Name: "Unconnected Support",
+                },
+              ],
+              Subject: `New Impact Report - ${kitNumber}`,
+              HTMLPart: htmlTemplate,
             },
           ],
-          Subject: `New Impact Report - ${kitNumber}`,
-          HTMLPart: htmlTemplate,
-        },
-      ],
-    });
+        });
 
-    console.log("Mailjet response:", mailRequest.body);
+      console.log("Mailjet response:", mailRequest.body);
 
-    res.json({ success: true, message: 'Report submitted', reportId: result.rows[0].id });
- } catch (emailError) {
-      console.error('Email sending failed:', emailError);
+      res.json({
+        success: true,
+        message: "Report submitted",
+        reportId: result.rows[0].id,
+      });
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
     }
 
-    res.json({ success: true, message: 'Report submitted', reportId: result.rows[0].id });
+    res.json({
+      success: true,
+      message: "Report submitted",
+      reportId: result.rows[0].id,
+    });
   } catch (error) {
-    console.error('Report error:', error);
-    res.status(500).json({ error: 'Failed to submit report', details: error.stack });
+    console.error("Report error:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to submit report", details: error.stack });
   }
 });
 
-app.get('/api/reports', async (req, res) => {
+app.get("/api/reports", async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
@@ -215,13 +274,13 @@ app.get('/api/reports', async (req, res) => {
     `);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching reports:', error);
-    res.status(500).json({ error: 'Failed to fetch reports' });
+    console.error("Error fetching reports:", error);
+    res.status(500).json({ error: "Failed to fetch reports" });
   }
 });
 
 // NEW: Serve images from uploads folder statically
-app.use('/uploads', express.static(path.join(__dirname, 'Uploads')));
+app.use("/uploads", express.static(path.join(__dirname, "Uploads")));
 
 // Helper Function: Get Bearer Token
 async function getBearerToken() {
@@ -246,7 +305,10 @@ async function getBearerToken() {
 
     return cache.token;
   } catch (error) {
-    console.error('Error getting bearer token:', error.response?.data || error.message);
+    console.error(
+      "Error getting bearer token:",
+      error.response?.data || error.message
+    );
     throw new Error("Failed to get bearer token");
   }
 }
@@ -256,13 +318,17 @@ app.post("/api/auth/signup", async (req, res) => {
   const { name, company, email, country, phone, password } = req.body;
   try {
     // Check if email is already verified (exists in users table)
-    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
     if (userCheck.rowCount > 0) {
       return res.status(400).json({ error: "Email already exists" });
     }
 
     // Generate and store OTP without inserting user yet
-    const otp = Math.floor(100000 + Math.random() * 900000).toString().substring(0, 6);
+    const otp = Math.floor(100000 + Math.random() * 900000)
+      .toString()
+      .substring(0, 6);
     const exp = Date.now() + 5 * 60 * 1000; // 5 minutes expiration
     await pool.query(
       "INSERT INTO otps (email, otp, exp) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET otp = $2, exp = $3",
@@ -273,7 +339,10 @@ app.post("/api/auth/signup", async (req, res) => {
     const request = mailjet.post("send", { version: "v3.1" }).request({
       Messages: [
         {
-          From: { Email: "support@unconnected.org", Name: "Unconnected - Signup" },
+          From: {
+            Email: "support@unconnected.org",
+            Name: "Unconnected - Signup",
+          },
           To: [{ Email: email }],
           Subject: "Your OTP for Signup",
           TextPart: `Your OTP is ${otp}. It expires in 5 minutes.`,
@@ -291,7 +360,9 @@ app.post("/api/auth/signup", async (req, res) => {
     }
     // Cleanup OTP on failure
     await pool.query("DELETE FROM otps WHERE email = $1", [email]);
-    res.status(500).json({ error: "Failed to process signup", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to process signup", details: error.message });
   }
 });
 
@@ -309,7 +380,9 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     }
 
     // Check if user already exists (in case of retry)
-    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
     if (userCheck.rowCount > 0) {
       await pool.query("DELETE FROM otps WHERE email = $1", [email]);
       return res.status(400).json({ error: "User already exists" });
@@ -323,7 +396,9 @@ app.post("/api/auth/verify-otp", async (req, res) => {
   } catch (error) {
     console.error("OTP verification error:", error);
     await pool.query("DELETE FROM otps WHERE email = $1", [email]);
-    res.status(500).json({ error: "Failed to verify OTP", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to verify OTP", details: error.message });
   }
 });
 
@@ -331,7 +406,9 @@ app.post("/api/auth/verify-otp", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
     if (result.rowCount === 0) {
       return res.status(400).json({ error: "Email not found" });
     }
@@ -349,97 +426,146 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-
 // New Bulk Endpoint
-app.post('/api/reports/bulk', upload.fields([{ name: 'csvFile', maxCount: 1 }, { name: 'photosZip', maxCount: 1 }]), async (req, res) => {
-  try {
-    const { company, reporterName, reporterEmail, region } = req.body;
-    const csvFile = req.files['csvFile'] ? req.files['csvFile'][0] : null;
-    const photosZip = req.files['photosZip'] ? req.files['photosZip'][0] : null;
+app.post(
+  "/api/reports/bulk",
+  upload.fields([
+    { name: "csvFile", maxCount: 1 },
+    { name: "photosZip", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const { company, reporterName, reporterEmail, region } = req.body;
+      const csvFile = req.files["csvFile"] ? req.files["csvFile"][0] : null;
+      const photosZip = req.files["photosZip"]
+        ? req.files["photosZip"][0]
+        : null;
 
-   if (!csvFile || !company || !reporterName || !reporterEmail || !region) {
-      return res.status(400).json({ error: 'Missing required fields or CSV file' });
-    }
-
-    // Parse CSV
-    const csvData = Papa.parse(fs.readFileSync(csvFile.path, 'utf8'), {
-      header: true,
-      skipEmptyLines: true,
-    }).data;
-
-    // Validate each report fully
-    const requiredFields = ['kitNumber', 'peopleCovered', 'peopleAccessing', 'civicLocation', 'freeAccessUsers', 'additionalComments'];
-    csvData.forEach((row, index) => {
-      requiredFields.forEach((field) => {
-        if (!row[field]) throw new Error(`Row ${index + 1} missing field: ${field}`);
-      });
-      if (row.civicLocation === 'Others' && !row.otherLocation) {
-        throw new Error(`Row ${index + 1} (kit ${row.kitNumber}): otherLocation required for civicLocation="Others"`);
+      if (!csvFile || !company || !reporterName || !reporterEmail || !region) {
+        return res
+          .status(400)
+          .json({ error: "Missing required fields or CSV file" });
       }
-      // Type checks (basic)
-     if (isNaN(row.peopleCovered) || isNaN(row.peopleAccessing) || isNaN(row.freeAccessUsers)) {
-        throw new Error(`Invalid numeric value in row for kit ${row.kitNumber}`);
-      }
-    });
 
-    // Handle ZIP if provided
-    let photoMap = {}; // kitNumber -> [paths]
-    if (photosZip) {
-      const zip = new AdmZip(photosZip.path);
-      const zipEntries = zip.getEntries();
-      const extractPath = path.join('uploads', `bulk_${Date.now()}`);
-      fs.mkdirSync(extractPath);
+      // Parse CSV
+      const csvData = Papa.parse(fs.readFileSync(csvFile.path, "utf8"), {
+        header: true,
+        skipEmptyLines: true,
+      }).data;
 
-      zipEntries.forEach((entry) => {
-        if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)) {
-          const fileName = entry.entryName.split('/').pop();
-          const kitNumber = fileName.split('_')[0]; // Assume format: KIT123_photo.jpg
-          if (kitNumber) {
-            const savePath = path.join(extractPath, fileName);
-            zip.extractEntryTo(entry.entryName, extractPath, false, true);
-            if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
-            photoMap[kitNumber].push(savePath);
-          }
+      // Validate each report fully
+      const requiredFields = [
+        "kitNumber",
+        "peopleCovered",
+        "peopleAccessing",
+        "civicLocation",
+        "freeAccessUsers",
+        "additionalComments",
+      ];
+      csvData.forEach((row, index) => {
+        requiredFields.forEach((field) => {
+          if (!row[field])
+            throw new Error(`Row ${index + 1} missing field: ${field}`);
+        });
+        if (row.civicLocation === "Others" && !row.otherLocation) {
+          throw new Error(
+            `Row ${index + 1} (kit ${
+              row.kitNumber
+            }): otherLocation required for civicLocation="Others"`
+          );
+        }
+        // Type checks (basic)
+        if (
+          isNaN(row.peopleCovered) ||
+          isNaN(row.peopleAccessing) ||
+          isNaN(row.freeAccessUsers)
+        ) {
+          throw new Error(
+            `Invalid numeric value in row for kit ${row.kitNumber}`
+          );
         }
       });
-    }
-    // Insert in transaction
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const insertedIds = [];
-      for (const row of csvData) {
-        const photoPaths = photoMap[row.kitNumber] || [];
-        const result = await client.query(`
+
+      // Handle ZIP if provided
+      let photoMap = {}; // kitNumber -> [paths]
+      if (photosZip) {
+        const zip = new AdmZip(photosZip.path);
+        const zipEntries = zip.getEntries();
+        const extractPath = path.join("uploads", `bulk_${Date.now()}`);
+        fs.mkdirSync(extractPath);
+
+        zipEntries.forEach((entry) => {
+          if (
+            !entry.isDirectory &&
+            entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)
+          ) {
+            const fileName = entry.entryName.split("/").pop();
+            const kitNumber = fileName.split("_")[0]; // Assume format: KIT123_photo.jpg
+            if (kitNumber) {
+              const savePath = path.join(extractPath, fileName);
+              zip.extractEntryTo(entry.entryName, extractPath, false, true);
+              if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
+              photoMap[kitNumber].push(savePath);
+            }
+          }
+        });
+      }
+      // Insert in transaction
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const insertedIds = [];
+        for (const row of csvData) {
+          const photoPaths = photoMap[row.kitNumber] || [];
+          const result = await client.query(
+            `
           INSERT INTO public.reports (
             kit_number, company, reporter_name, reporter_email, region,
             people_covered, people_accessing, civic_location, other_location,
             free_access_users, additional_comments, infra_photos
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           RETURNING id;
-        `, [
-          row.kitNumber, company, reporterName, reporterEmail, region,
-          parseInt(row.peopleCovered), parseInt(row.peopleAccessing), row.civicLocation, row.otherLocation || null,
-          parseInt(row.freeAccessUsers), row.additionalComments, photoPaths
-        ]);
-        insertedIds.push(result.rows[0].id);
-      }
-      await client.query('COMMIT');
+        `,
+            [
+              row.kitNumber,
+              company,
+              reporterName,
+              reporterEmail,
+              region,
+              parseInt(row.peopleCovered),
+              parseInt(row.peopleAccessing),
+              row.civicLocation,
+              row.otherLocation || null,
+              parseInt(row.freeAccessUsers),
+              row.additionalComments,
+              photoPaths,
+            ]
+          );
+          insertedIds.push(result.rows[0].id);
+        }
+        await client.query("COMMIT");
 
+        // Cleanup temp files
+        if (csvFile) fs.unlinkSync(csvFile.path);
+        if (photosZip) fs.unlinkSync(photosZip.path);
 
-      // Cleanup temp files
-      fs.unlinkSync(csvFile.path);
-      if (photosZip) fs.unlinkSync(photosZip.path);
-
-
-      // Bulk Email Notification (summary)
-     const baseUrl = process.env.API_BASE_URL || 'https://api.unconnected.support';
-      const summary = csvData.map(r => {
-        const photos = photoMap[r.kitNumber] || [];
-        const photoLinks = photos.map(p => `<a href="${baseUrl}/${p}" target="_blank">Photo</a>`).join(' ');
-        return `Kit ${r.kitNumber}: ${r.peopleCovered} covered, ${r.additionalComments.substring(0, 50)}... ${photos.length > 0 ? `(Photos: ${photoLinks})` : ''}`;
-      }).join('<br/>');
-      const htmlTemplate = `
+        // Bulk Email Notification (summary)
+        const baseUrl =
+          process.env.API_BASE_URL || "https://api.unconnected.support";
+        const summary = csvData
+          .map((r) => {
+            const photos = photoMap[r.kitNumber] || [];
+            const photoLinks = photos
+              .map((p) => `<a href="${baseUrl}/${p}" target="_blank">Photo</a>`)
+              .join(" ");
+            return `Kit ${r.kitNumber}: ${
+              r.peopleCovered
+            } covered, ${r.additionalComments.substring(0, 50)}... ${
+              photos.length > 0 ? `(Photos: ${photoLinks})` : ""
+            }`;
+          })
+          .join("<br/>");
+        const htmlTemplate = `
          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
           <h1 style="color: #2c3e50; text-align: center;">New Bulk Impact Reports Submitted (${csvData.length} kits)</h1>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
@@ -452,33 +578,67 @@ app.post('/api/reports/bulk', upload.fields([{ name: 'csvFile', maxCount: 1 }, {
             <h2 style="color: #34495e; margin-top: 0;">Summary</h2>
             ${summary}
           </div>
-          <!-- Add more details if needed -->
         </div>
       `;
 
-      const mailRequest = await mailjet.post("send", { version: "v3.1" }).request({
-        Messages: [
-          {
-            From: { Email: process.env.EMAIL_USER || "support@unconnected.org", Name: "Unconnected Impact Reporting" },
-            To: [{ Email: "support@unconnected.org", Name: "Unconnected Support" }],
+        let emailStatus = "success";
+        try {
+          console.log("Sending bulk email to:", {
+            From: process.env.EMAIL_USER || "support@unconnected.org",
+            To: "support@unconnected.org",
             Subject: `New Bulk Impact Reports (${csvData.length} kits)`,
-            HTMLPart: htmlTemplate,
-          },
-        ],
-      });
+          });
 
-      res.json({ success: true, message: 'Bulk reports submitted', reportIds: insertedIds });
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
+          const mailRequest = await mailjet
+            .post("send", { version: "v3.1" })
+            .request({
+              Messages: [
+                {
+                  From: {
+                    Email: process.env.EMAIL_USER || "support@unconnected.org",
+                    Name: "Unconnected Impact Reporting",
+                  },
+                  To: [
+                    {
+                      Email: "support@unconnected.org",
+                      Name: "Unconnected Support",
+                    },
+                  ],
+                  Subject: `New Bulk Impact Reports (${csvData.length} kits)`,
+                  HTMLPart: htmlTemplate,
+                },
+              ],
+            });
+          console.log("Bulk email sent successfully:", mailRequest.body);
+        } catch (emailError) {
+          emailStatus = "failed";
+          console.error("Failed to send bulk email:", {
+            message: emailError.message,
+            response: emailError.response?.data,
+            status: emailError.response?.status,
+            stack: emailError.stack,
+          });
+        }
+        res.json({
+          success: true,
+          message: "Bulk reports submitted",
+          reportIds: insertedIds,
+          emailStatus, // Include email status in response for debugging
+        });
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error("Bulk report error:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Failed to submit bulk reports" });
     }
-  } catch (error) {
-    console.error('Bulk report error:', error);
-    res.status(500).json({ error: error.message || 'Failed to submit bulk reports' });
   }
-});
+);
 
 /**
  * @swagger
@@ -526,7 +686,9 @@ app.post('/api/reports/bulk', upload.fields([{ name: 'csvFile', maxCount: 1 }, {
 app.post("/api/auth/create-user", async (req, res) => {
   const { name, company, email, country, phone, password } = req.body;
   try {
-    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
     if (userCheck.rowCount > 0) {
       return res.status(400).json({ error: "Email already exists" });
     }
@@ -544,7 +706,9 @@ app.post("/api/auth/create-user", async (req, res) => {
     res.json({ message: "User created", data: userResult.rows[0] });
   } catch (error) {
     console.error("User creation error:", error);
-    res.status(500).json({ error: "Failed to create user", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to create user", details: error.message });
   }
 });
 
@@ -605,54 +769,67 @@ async function makeAuthedPost(path, body = {}) {
 // Send OTP Email via Mailjet
 async function sendOtpEmail(email, otp, purpose = "signup") {
   try {
-    if (!process.env.MJ_APIKEY_PUBLIC || !process.env.MJ_APIKEY_PRIVATE || !process.env.EMAIL_USER) {
-      console.error('Mailjet configuration missing:', {
+    if (
+      !process.env.MJ_APIKEY_PUBLIC ||
+      !process.env.MJ_APIKEY_PRIVATE ||
+      !process.env.EMAIL_USER
+    ) {
+      console.error("Mailjet configuration missing:", {
         MJ_APIKEY_PUBLIC: !!process.env.MJ_APIKEY_PUBLIC,
         MJ_APIKEY_PRIVATE: !!process.env.MJ_APIKEY_PRIVATE,
-        EMAIL_USER: !!process.env.EMAIL_USER
+        EMAIL_USER: !!process.env.EMAIL_USER,
       });
-      throw new Error('Mailjet configuration missing');
+      throw new Error("Mailjet configuration missing");
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      console.error('Invalid email format:', email);
-      throw new Error('Invalid email format');
+      console.error("Invalid email format:", email);
+      throw new Error("Invalid email format");
     }
-    const subject = purpose === "signup" ? "Your Signup OTP" : "Your Password Reset OTP";
+    const subject =
+      purpose === "signup" ? "Your Signup OTP" : "Your Password Reset OTP";
     const text = `Your OTP for ${purpose} is: ${otp}. It expires in 10 minutes.`;
     const html = `<p>Your OTP for ${purpose} is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`;
 
-    const response = await mailjet.post("send", { version: "v3.1" }).request({
-      Messages: [
-        {
-          From: {
-            Email: process.env.EMAIL_USER,
-            Name: "Starlink Activation Gateway",
+    const response = await mailjet.post("send", { version: "v3.1" }).request(
+      {
+        Messages: [
+          {
+            From: {
+              Email: process.env.EMAIL_USER,
+              Name: "Starlink Activation Gateway",
+            },
+            To: [{ Email: email }],
+            Subject: subject,
+            TextPart: text,
+            HTMLPart: html,
           },
-          To: [{ Email: email }],
-          Subject: subject,
-          TextPart: text,
-          HTMLPart: html
-       }]
-    }, {
-      timeout: 10000, // 10-second timeout
-      retries: 2 // Retry twice on failure
-    });
+        ],
+      },
+      {
+        timeout: 10000, // 10-second timeout
+        retries: 2, // Retry twice on failure
+      }
+    );
     console.log("Mailjet response:", JSON.stringify(response.body, null, 2));
     return response;
   } catch (error) {
-    console.error(
-      "Error sending OTP email:",
-     {
+    console.error("Error sending OTP email:", {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
       code: error.code,
-      stack: error.stack
+      stack: error.stack,
     });
-    if (error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED') {
-      console.warn('Network error detected, bypassing email sending for testing');
-      return { body: { Messages: [{ Status: 'bypassed' }] } }; // Fallback response
+    if (
+      error.code === "ENOTFOUND" ||
+      error.code === "ETIMEDOUT" ||
+      error.code === "ECONNREFUSED"
+    ) {
+      console.warn(
+        "Network error detected, bypassing email sending for testing"
+      );
+      return { body: { Messages: [{ Status: "bypassed" }] } }; // Fallback response
     }
     throw new Error(`Failed to send ${purpose} OTP email: ${error.message}`);
   }
@@ -684,8 +861,6 @@ async function sendReportConfirmationEmail(email, reportData) {
   }
 }
 
- 
- 
 /**
  * @swagger
  * /api/auth/reset-password-request:
@@ -708,13 +883,17 @@ app.post("/api/auth/reset-password-request", async (req, res) => {
   const { email } = req.body;
   try {
     // Check if user exists
-    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const userCheck = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
     if (userCheck.rowCount === 0) {
       return res.status(400).json({ error: "Email not found" });
     }
 
     // Generate and store OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString().substring(0, 6);
+    const otp = Math.floor(100000 + Math.random() * 900000)
+      .toString()
+      .substring(0, 6);
     const exp = Date.now() + 5 * 60 * 1000; // 5 minutes expiration
     await pool.query(
       "INSERT INTO otps (email, otp, exp) VALUES ($1, $2, $3) ON CONFLICT (email) DO UPDATE SET otp = $2, exp = $3",
@@ -725,7 +904,10 @@ app.post("/api/auth/reset-password-request", async (req, res) => {
     const request = mailjet.post("send", { version: "v3.1" }).request({
       Messages: [
         {
-          From: { Email: "support@unconnected.org", Name: "Unconnected - Password Reset" },
+          From: {
+            Email: "support@unconnected.org",
+            Name: "Unconnected - Password Reset",
+          },
           To: [{ Email: email }],
           Subject: "Your Password Reset OTP",
           TextPart: `Your OTP is ${otp}. It expires in 5 minutes.`,
@@ -738,10 +920,11 @@ app.post("/api/auth/reset-password-request", async (req, res) => {
   } catch (error) {
     console.error("Reset password request error:", error);
     await pool.query("DELETE FROM otps WHERE email = $1", [email]);
-    res.status(500).json({ error: "Failed to send reset OTP", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to send reset OTP", details: error.message });
   }
 });
-
 
 /**
  * @swagger
@@ -799,10 +982,10 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
     // Hash new password and update user
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-    await pool.query(
-      "UPDATE users SET password = $1 WHERE email = $2",
-      [hashedPassword, email]
-    );
+    await pool.query("UPDATE users SET password = $1 WHERE email = $2", [
+      hashedPassword,
+      email,
+    ]);
 
     // Clean up OTP
     await pool.query("DELETE FROM otps WHERE email = $1", [email]);
@@ -810,11 +993,11 @@ app.post("/api/auth/reset-password", async (req, res) => {
     res.json({ message: "Password reset successful" });
   } catch (error) {
     console.error("Reset password error:", error);
-    res.status(500).json({ error: "Failed to reset password", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to reset password", details: error.message });
   }
 });
-
-
 
 /**
  * @swagger
@@ -933,12 +1116,12 @@ const API =
             "ACC-7580055-64428-19": "PH",
             "ACC-7071161-50554-7": "PH",
             "ACC-DF-9012567-86171-1": "PH",
-            "ACC-DF-9012511-23590-86" : "PH",
+            "ACC-DF-9012511-23590-86": "PH",
             "ACC-7393314-12390-10": "NG",
             "ACC-DF-9012430-88305-91": "NG",
             "ACC-DF-8910267-22774-3": "MX",
             "ACC-DF-8944908-16857-17": "MX",
-            "ACC-DF-8914998-17079-20": "KE"
+            "ACC-DF-8914998-17079-20": "KE",
           };
           const regionCode = accountRenames[acct] || payload.regionCode;
           console.log(
@@ -1109,11 +1292,9 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-2866843-91611-20",
       "ACC-7393314-12390-10",
       "ACC-DF-9022857-69501-2",
-      
+
       "ACC-7580055-64428-19",
-      "ACC-DF-8914998-17079-20"
-      
-      
+      "ACC-DF-8914998-17079-20",
     ];
     // Filter out unwanted accounts
     data.content.results = data.content.results.filter(
@@ -1122,17 +1303,16 @@ app.get("/api/accounts", async (req, res) => {
 
     // account number to rename mapping
     const accountRenames = {
-      'ACC-6814367-50278-22': 'PCSWiFi4Every1',
-      'ACC-7071161-50554-7': 'WirelessLink',
-      'ACC-DF-8910267-22774-3': 'Comnet',
-      'ACC-DF-8944908-16857-17': 'CMC Network',
-      'ACC-DF-8914998-17079-20': 'KakumaVentures',
-      'ACC-DF-9012567-86171-1': 'Yuno Network',
-      'ACC-DF-9012430-88305-91': 'Eritel',
-      'ACC-DF-9012511-23590-86': 'Globe',
+      "ACC-6814367-50278-22": "PCSWiFi4Every1",
+      "ACC-7071161-50554-7": "WirelessLink",
+      "ACC-DF-8910267-22774-3": "Comnet",
+      "ACC-DF-8944908-16857-17": "CMC Network",
+      "ACC-DF-8914998-17079-20": "KakumaVentures",
+      "ACC-DF-9012567-86171-1": "Yuno Network",
+      "ACC-DF-9012430-88305-91": "Eritel",
+      "ACC-DF-9012511-23590-86": "Globe",
       // 'ACC-7580055-64428-19': 'Unconnected Partner 3',
-      'ACC-7393314-12390-10': 'TESTER API ACCOUNT'
-    
+      "ACC-7393314-12390-10": "TESTER API ACCOUNT",
     };
     // Rename accounts based on mapping
     data.content.results = data.content.results.map((account) => {
@@ -1144,7 +1324,6 @@ app.get("/api/accounts", async (req, res) => {
       }
       return account;
     });
-
 
     // Sort the results alphabetically by the regionCode
     data.content.results.sort((a, b) => {
@@ -1674,7 +1853,9 @@ app.post("/api/notifications/activation", async (req, res) => {
           <p style="margin: 5px 0;"><strong>Dish Origin:</strong> ${
             dishOrigin ? dishOrigin : "Not specified"
           }</p>
-          <p style="margin: 5px 0;"><strong>Impact Type:</strong> ${impactType}${otherImpactType ? ` (${otherImpactType})` : ''}</p>
+          <p style="margin: 5px 0;"><strong>Impact Type:</strong> ${impactType}${
+      otherImpactType ? ` (${otherImpactType})` : ""
+    }</p>
         </div>
         
         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
