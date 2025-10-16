@@ -621,10 +621,10 @@ app.post(
           <h1 style="color: #2c3e50; text-align: center;">Impact Reports Submitted (${csvData.length} kits)</h1>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
             <h2 style="color: #34495e; margin-top: 0;">Reporter Details</h2>
-            <p><strong>Name:</strong> ${reporterName}</p>
-            <p><strong>Email:</strong> ${reporterEmail}</p>
-            <p><strong>Company:</strong> ${company}</p>
-            <p><strong>Region:</strong> ${region}</p>
+            <p><strong>Name:</strong> ${escapeHtml(reporterName)}</p>
+            <p><strong>Email:</strong> ${escapeHtml(reporterEmail)}</p>
+            <p><strong>Company:</strong> ${escapeHtml(company)}</p>
+            <p><strong>Region:</strong> ${escapeHtml(region)}</p>
 
           </div>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
