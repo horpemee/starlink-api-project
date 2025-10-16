@@ -464,6 +464,12 @@ app.post(
         skipEmptyLines: true,
       }).data;
 
+        if (csvData.length === 0) {
+        return res.status(400).json({ error: "CSV file is empty" });
+      }
+
+      console.log(`Processing ${csvData.length} reports from CSV`);
+
       // Validate each report fully
       const requiredFields = [
         "kitNumber",
@@ -503,8 +509,9 @@ app.post(
         const zip = new AdmZip(photosZip.path);
         const zipEntries = zip.getEntries();
         const extractPath = path.join("uploads", `bulk_${Date.now()}`);
-        fs.mkdirSync(extractPath);
+        fs.mkdirSync(extractPath, { recursive: true });
 
+        // let photoCount = 0;
         zipEntries.forEach((entry) => {
           if (
             !entry.isDirectory &&
@@ -517,6 +524,7 @@ app.post(
               zip.extractEntryTo(entry.entryName, extractPath, false, true);
               if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
               photoMap[kitNumber].push(savePath);
+              // photoCount++;
             }
           }
         });
@@ -526,8 +534,8 @@ app.post(
       try {
         await client.query("BEGIN");
 
-        const values = [];
         const insertedIds = [];
+        const values = [];
         csvData.forEach((row) => {
           const photoPaths = photoMap[row.kitNumber] || [];
           values.push([
@@ -550,26 +558,19 @@ app.post(
         for (let i = 0; i < values.length; i += 100) {
           // Batch in chunks of 100 to avoid query size limits
           const chunk = values.slice(i, i + 100);
-          const placeholders = chunk
-            .map(
-              (_, idx) =>
-                `($${idx * 12 + 1}, $${idx * 12 + 2}, $${idx * 12 + 3}, $${
-                  idx * 12 + 4
-                }, $${idx * 12 + 5}, $${idx * 12 + 6}, $${idx * 12 + 7}, $${
-                  idx * 12 + 8
-                }, $${idx * 12 + 9}, $${idx * 12 + 10}, $${idx * 12 + 11}, $${
-                  idx * 12 + 12
-                })`
-            )
-            .join(",");
           const flatValues = chunk.flat();
+          const placeholders = chunk
+            .map((_, idx) =>
+              `(${Array.from({ length: 12 }, (_, j) => `$${idx * 12 + j + 1}`).join(',')})`
+            )
+            .join(',');
           const result = await client.query(
             `
           INSERT INTO public.reports (
             kit_number, company, reporter_name, reporter_email, region,
             people_covered, people_accessing, civic_location, other_location,
             free_access_users, additional_comments, infra_photos
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ) VALUES ${placeholders}
           RETURNING id;
         `,
             flatValues
@@ -586,10 +587,10 @@ app.post(
         const summaryData = csvData.map((row, idx) => ({
           reportId: insertedIds[idx],
           kitNumber: row.kitNumber,
-          company: company,
-          reporterName: reporterName,
-          reporterEmail: reporterEmail,
-          region: region,
+          company,
+          reporterName,
+          reporterEmail,
+          region,
           peopleCovered: row.peopleCovered,
           peopleAccessing: row.peopleAccessing,
           civicLocation: row.civicLocation,
