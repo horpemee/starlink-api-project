@@ -11,7 +11,7 @@ const Mailjet = require("node-mailjet");
 const bcrypt = require("bcrypt");
 const { Pool } = require("pg");
 const Papa = require("papaparse");
-const stringify = require("csv-stringify/sync"); // For generating CSV
+const {stringify} = require("csv-stringify/sync"); // For generating CSV
 
 const app = express();
 const port = 3000;
