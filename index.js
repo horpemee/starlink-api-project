@@ -10,6 +10,7 @@ const cors = require("cors");
 const Mailjet = require("node-mailjet");
 const bcrypt = require('bcrypt');
 const { Pool } = require("pg");
+const AdmZip = require('adm-zip');
 const app = express();
 const port = 3000;
 const cache = { token: null, exp: 0 };
@@ -38,6 +39,7 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 const multer = require("multer");
 const fs = require('fs');
+const AdmZip = require('adm-zip'); // NEW: For ZIP extraction
 const upload = multer({ dest: 'uploads/' });
 // const upload = multer({ storage: multer.memoryStorage() });
 
@@ -181,7 +183,7 @@ app.post('/api/report', upload.array('infraPhotos', 10), async (req, res) => {
               Name: "Unconnected Support",
             },
           ],
-          Subject: `New Impact Report - Kit ${kitNumber}`,
+          Subject: `New Impact Report - ${kitNumber}`,
           HTMLPart: htmlTemplate,
         },
       ],
@@ -219,7 +221,7 @@ app.get('/api/reports', async (req, res) => {
 });
 
 // NEW: Serve images from uploads folder statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'Uploads')));
 
 // Helper Function: Get Bearer Token
 async function getBearerToken() {
@@ -349,37 +351,65 @@ app.post("/api/auth/login", async (req, res) => {
 
 
 // New Bulk Endpoint
-app.post('/api/reports/bulk', async (req, res) => {
+app.post('/api/reports/bulk', upload.fields([{ name: 'csvFile', maxCount: 1 }, { name: 'photosZip', maxCount: 1 }]), async (req, res) => {
   try {
-    const { reports } = req.body;
+    const { company, reporterName, reporterEmail, region } = req.body;
+    const csvFile = req.files['csvFile'] ? req.files['csvFile'][0] : null;
+    const photosZip = req.files['photosZip'] ? req.files['photosZip'][0] : null;
 
-    if (!Array.isArray(reports) || reports.length === 0) {
-      return res.status(400).json({ error: 'Invalid reports array' });
+   if (!csvFile || !company || !reporterName || !reporterEmail || !region) {
+      return res.status(400).json({ error: 'Missing required fields or CSV file' });
     }
+
+    // Parse CSV
+    const csvData = Papa.parse(fs.readFileSync(csvFile.path, 'utf8'), {
+      header: true,
+      skipEmptyLines: true,
+    }).data;
 
     // Validate each report fully
-    const requiredFields = ['kitNumber', 'company', 'reporterName', 'reporterEmail', 'region', 'peopleCovered', 'peopleAccessing', 'civicLocation', 'freeAccessUsers', 'additionalComments'];
-    for (const report of reports) {
-      requiredFields.forEach(field => {
-        if (report[field] === undefined || report[field] === null) {
-          throw new Error(`Missing field ${field} in report for kit ${report.kitNumber}`);
-        }
+    const requiredFields = ['kitNumber', 'peopleCovered', 'peopleAccessing', 'civicLocation', 'freeAccessUsers', 'additionalComments'];
+    csvData.forEach((row, index) => {
+      requiredFields.forEach((field) => {
+        if (!row[field]) throw new Error(`Row ${index + 1} missing field: ${field}`);
       });
-      if (report.civicLocation === 'Others' && !report.otherLocation) {
-        throw new Error(`otherLocation required for civicLocation="Others" in kit ${report.kitNumber}`);
+      if (row.civicLocation === 'Others' && !row.otherLocation) {
+        throw new Error(`Row ${index + 1} (kit ${row.kitNumber}): otherLocation required for civicLocation="Others"`);
       }
       // Type checks (basic)
-      if (isNaN(report.peopleCovered) || isNaN(report.peopleAccessing) || isNaN(report.freeAccessUsers)) {
-        throw new Error(`Numeric fields must be numbers in kit ${report.kitNumber}`);
+     if (isNaN(row.peopleCovered) || isNaN(row.peopleAccessing) || isNaN(row.freeAccessUsers)) {
+        throw new Error(`Invalid numeric value in row for kit ${row.kitNumber}`);
       }
-    }
+    });
 
+    // Handle ZIP if provided
+    let photoMap = {}; // kitNumber -> [paths]
+    if (photosZip) {
+      const zip = new AdmZip(photosZip.path);
+      const zipEntries = zip.getEntries();
+      const extractPath = path.join('uploads', `bulk_${Date.now()}`);
+      fs.mkdirSync(extractPath);
+
+      zipEntries.forEach((entry) => {
+        if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)) {
+          const fileName = entry.entryName.split('/').pop();
+          const kitNumber = fileName.split('_')[0]; // Assume format: KIT123_photo.jpg
+          if (kitNumber) {
+            const savePath = path.join(extractPath, fileName);
+            zip.extractEntryTo(entry.entryName, extractPath, false, true);
+            if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
+            photoMap[kitNumber].push(savePath);
+          }
+        }
+      });
+    }
     // Insert in transaction
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const insertedIds = [];
-      for (const report of reports) {
+      for (const row of csvData) {
+        const photoPaths = photoMap[row.kitNumber] || [];
         const result = await client.query(`
           INSERT INTO public.reports (
             kit_number, company, reporter_name, reporter_email, region,
@@ -388,19 +418,36 @@ app.post('/api/reports/bulk', async (req, res) => {
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           RETURNING id;
         `, [
-          report.kitNumber, report.company, report.reporterName, report.reporterEmail, report.region,
-          report.peopleCovered, report.peopleAccessing, report.civicLocation, report.otherLocation || null,
-          report.freeAccessUsers, report.additionalComments, [] // No photos
+          row.kitNumber, company, reporterName, reporterEmail, region,
+          parseInt(row.peopleCovered), parseInt(row.peopleAccessing), row.civicLocation, row.otherLocation || null,
+          parseInt(row.freeAccessUsers), row.additionalComments, photoPaths
         ]);
         insertedIds.push(result.rows[0].id);
       }
       await client.query('COMMIT');
 
+
+      // Cleanup temp files
+      fs.unlinkSync(csvFile.path);
+      if (photosZip) fs.unlinkSync(photosZip.path);
+
+
       // Bulk Email Notification (summary)
-      const summary = reports.map(r => `Kit ${r.kitNumber}: ${r.peopleCovered} covered, ${r.additionalComments.substring(0, 50)}...`).join('<br/>');
+     const baseUrl = process.env.API_BASE_URL || 'https://api.unconnected.support';
+      const summary = csvData.map(r => {
+        const photos = photoMap[r.kitNumber] || [];
+        const photoLinks = photos.map(p => `<a href="${baseUrl}/${p}" target="_blank">Photo</a>`).join(' ');
+        return `Kit ${r.kitNumber}: ${r.peopleCovered} covered, ${r.additionalComments.substring(0, 50)}... ${photos.length > 0 ? `(Photos: ${photoLinks})` : ''}`;
+      }).join('<br/>');
       const htmlTemplate = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
-          <h1 style="color: #2c3e50; text-align: center;">New Bulk Impact Reports Submitted (${reports.length} kits)</h1>
+         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+          <h1 style="color: #2c3e50; text-align: center;">New Bulk Impact Reports Submitted (${csvData.length} kits)</h1>
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <h2 style="color: #34495e; margin-top: 0;">Common Details</h2>
+            <p><strong>Company:</strong> ${company}</p>
+            <p><strong>Reporter:</strong> ${reporterName} (${reporterEmail})</p>
+            <p><strong>Region:</strong> ${region}</p>
+          </div>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
             <h2 style="color: #34495e; margin-top: 0;">Summary</h2>
             ${summary}
@@ -414,7 +461,7 @@ app.post('/api/reports/bulk', async (req, res) => {
           {
             From: { Email: process.env.EMAIL_USER || "support@unconnected.org", Name: "Unconnected Impact Reporting" },
             To: [{ Email: "support@unconnected.org", Name: "Unconnected Support" }],
-            Subject: `New Bulk Impact Reports (${reports.length} kits)`,
+            Subject: `New Bulk Impact Reports (${csvData.length} kits)`,
             HTMLPart: htmlTemplate,
           },
         ],
