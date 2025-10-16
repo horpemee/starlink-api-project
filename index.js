@@ -11,6 +11,8 @@ const Mailjet = require("node-mailjet");
 const bcrypt = require("bcrypt");
 const { Pool } = require("pg");
 const Papa = require("papaparse");
+const stringify = require("csv-stringify/sync"); // For generating CSV
+
 const app = express();
 const port = 3000;
 const cache = { token: null, exp: 0 };
@@ -514,9 +516,44 @@ app.post(
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
+
+        const values = [];
         const insertedIds = [];
-        for (const row of csvData) {
+        csvData.forEach((row) => {
           const photoPaths = photoMap[row.kitNumber] || [];
+          values.push([
+            row.kitNumber,
+            escapeHtml(company),
+            escapeHtml(reporterName),
+            escapeHtml(reporterEmail),
+            escapeHtml(region),
+            parseInt(row.peopleCovered),
+            parseInt(row.peopleAccessing),
+            escapeHtml(row.civicLocation),
+            row.otherLocation ? escapeHtml(row.otherLocation) : null,
+            parseInt(row.freeAccessUsers),
+            escapeHtml(row.additionalComments),
+            photoPaths,
+          ]);
+        });
+
+        // Bulk insert (use a library like pg-copy-stream for even larger batches if needed, but this is fine for 600)
+        for (let i = 0; i < values.length; i += 100) {
+          // Batch in chunks of 100 to avoid query size limits
+          const chunk = values.slice(i, i + 100);
+          const placeholders = chunk
+            .map(
+              (_, idx) =>
+                `($${idx * 12 + 1}, $${idx * 12 + 2}, $${idx * 12 + 3}, $${
+                  idx * 12 + 4
+                }, $${idx * 12 + 5}, $${idx * 12 + 6}, $${idx * 12 + 7}, $${
+                  idx * 12 + 8
+                }, $${idx * 12 + 9}, $${idx * 12 + 10}, $${idx * 12 + 11}, $${
+                  idx * 12 + 12
+                })`
+            )
+            .join(",");
+          const flatValues = chunk.flat();
           const result = await client.query(
             `
           INSERT INTO public.reports (
@@ -526,22 +563,9 @@ app.post(
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           RETURNING id;
         `,
-            [
-              row.kitNumber,
-              company,
-              reporterName,
-              reporterEmail,
-              region,
-              parseInt(row.peopleCovered),
-              parseInt(row.peopleAccessing),
-              row.civicLocation,
-              row.otherLocation || null,
-              parseInt(row.freeAccessUsers),
-              row.additionalComments,
-              photoPaths,
-            ]
+            flatValues
           );
-          insertedIds.push(result.rows[0].id);
+          insertedIds.push(...result.rows.map((r) => r.id));
         }
         await client.query("COMMIT");
 
@@ -549,45 +573,73 @@ app.post(
         if (csvFile) fs.unlinkSync(csvFile.path);
         if (photosZip) fs.unlinkSync(photosZip.path);
 
+        // Generate summary CSV for download/attachment
+        const summaryData = csvData.map((row, idx) => ({
+          reportId: insertedIds[idx],
+          kitNumber: row.kitNumber,
+          company: company,
+          reporterName: reporterName,
+          reporterEmail: reporterEmail,
+          region: region,
+          peopleCovered: row.peopleCovered,
+          peopleAccessing: row.peopleAccessing,
+          civicLocation: row.civicLocation,
+          otherLocation: row.otherLocation || "",
+          freeAccessUsers: row.freeAccessUsers,
+          additionalComments: row.additionalComments,
+          infraPhotos: (photoMap[row.kitNumber] || []).join(", "),
+        }));
+
+        const csvContent = stringify(summaryData, { header: true });
+        const timestamp = Date.now();
+        const csvFilePath = path.join(
+          "uploads",
+          `bulk_summary_${timestamp}.csv`
+        );
+        fs.writeFileSync(csvFilePath, csvContent);
+        const downloadUrl = `${
+          process.env.API_BASE_URL || "https://api.unconnected.support"
+        }/${csvFilePath}`;
+        const csvBase64 = Buffer.from(csvContent).toString("base64");
+
         // Bulk Email Notification (summary)
         const baseUrl =
           process.env.API_BASE_URL || "https://api.unconnected.support";
         const summary = csvData
           .map((r) => {
             const photos = photoMap[r.kitNumber] || [];
-            const photoLinks = photos
-              .map((p) => `<a href="${baseUrl}/${p}" target="_blank">Photo</a>`)
-              .join(" ");
-            return `Kit ${r.kitNumber}: ${
+
+            return `Kit ${escapeHtml(r.kitNumber)}: ${
               r.peopleCovered
-            } covered, ${r.additionalComments.substring(0, 50)}... ${
-              photos.length > 0 ? `(Photos: ${photoLinks})` : ""
-            }`;
+            } covered, ${escapeHtml(
+              r.additionalComments.substring(0, 50)
+            )}... (${photos.length} photos)`;
           })
           .join("<br/>");
         const htmlTemplate = `
          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
-          <h1 style="color: #2c3e50; text-align: center;">New Bulk Impact Reports Submitted (${csvData.length} kits)</h1>
+          <h1 style="color: #2c3e50; text-align: center;">Impact Reports Submitted (${csvData.length} kits)</h1>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
-            <h2 style="color: #34495e; margin-top: 0;">Common Details</h2>
+            <h2 style="color: #34495e; margin-top: 0;">Reporter Details</h2>
+            <p><strong>Name:</strong> ${reporterName}</p>
+            <p><strong>Email:</strong> ${reporterEmail}</p>
             <p><strong>Company:</strong> ${company}</p>
-            <p><strong>Reporter:</strong> ${reporterName} (${reporterEmail})</p>
             <p><strong>Region:</strong> ${region}</p>
+
           </div>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
             <h2 style="color: #34495e; margin-top: 0;">Summary</h2>
             ${summary}
           </div>
+          <p>Download full summary: <a href="${downloadUrl}">bulk_summary_${timestamp}.csv</a></p>
         </div>
       `;
 
         let emailStatus = "success";
         try {
-          console.log("Sending bulk email to:", {
-            From: process.env.EMAIL_USER || "support@unconnected.org",
-            To: "support@unconnected.org",
-            Subject: `New Bulk Impact Reports (${csvData.length} kits)`,
-          });
+          console.log(
+            "Sending bulk email to support@unconnected.org with attachment"
+          );
 
           const mailRequest = await mailjet
             .post("send", { version: "v3.1" })
@@ -606,6 +658,13 @@ app.post(
                   ],
                   Subject: `New Bulk Impact Reports (${csvData.length} kits)`,
                   HTMLPart: htmlTemplate,
+                  Attachments: [
+                    {
+                      ContentType: "text/csv",
+                      Filename: `bulk_summary_${timestamp}.csv`,
+                      Base64Content: csvBase64,
+                    },
+                  ],
                 },
               ],
             });
@@ -619,11 +678,13 @@ app.post(
             stack: emailError.stack,
           });
         }
+
         res.json({
           success: true,
           message: "Bulk reports submitted",
           reportIds: insertedIds,
-          emailStatus, // Include email status in response for debugging
+          emailStatus,
+          downloadUrl, // Users can download the summary file from this URL
         });
       } catch (e) {
         await client.query("ROLLBACK");
