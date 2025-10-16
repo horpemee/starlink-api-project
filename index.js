@@ -428,6 +428,15 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+// HTML escape function
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 // New Bulk Endpoint
 app.post(
   "/api/reports/bulk",
