@@ -504,14 +504,17 @@ app.post(
       });
 
       // Handle ZIP if provided
-      let photoMap = {}; // kitNumber -> [paths]
+      const photoMap = {}; // kitNumber -> [paths]
       if (photosZip) {
-        const zip = new AdmZip(photosZip.path);
+        try{
+           const zip = new AdmZip(photosZip.path);
         const zipEntries = zip.getEntries();
         const extractPath = path.join("uploads", `bulk_${Date.now()}`);
         fs.mkdirSync(extractPath, { recursive: true });
+        
 
         // let photoCount = 0;
+        let photoCount = 0;
         zipEntries.forEach((entry) => {
           if (
             !entry.isDirectory &&
@@ -524,10 +527,17 @@ app.post(
               zip.extractEntryTo(entry.entryName, extractPath, false, true);
               if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
               photoMap[kitNumber].push(savePath);
-              // photoCount++;
+              photoCount++;
             }
           }
         });
+        if (photoCount === 0) {
+            console.warn("No valid photos found in ZIP");
+          }
+          } catch (zipError) {
+          console.error("ZIP processing error:", zipError);
+          return res.status(500).json({ error: "Failed to process ZIP file" });
+        }
       }
       // Insert in transaction
       const client = await pool.connect();
@@ -628,7 +638,7 @@ app.post(
           .join("<br/>");
         const htmlTemplate = `
          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
-          <h1 style="color: #2c3e50; text-align: center;">Impact Reports Submitted (${csvData.length} kits)</h1>
+          <h1 style="color: #2c3e50; text-align: center;">${company} Impact Reports Submitted (${csvData.length} kits)</h1>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
             <h2 style="color: #34495e; margin-top: 0;">Reporter Details</h2>
             <p><strong>Name:</strong> ${escapeHtml(reporterName)}</p>
@@ -695,6 +705,7 @@ app.post(
           reportIds: insertedIds,
           emailStatus,
           downloadUrl, // Users can download the summary file from this URL
+          photos: photoMap
         });
       } catch (e) {
         await client.query("ROLLBACK");
