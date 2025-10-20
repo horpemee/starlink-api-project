@@ -438,24 +438,311 @@ function escapeHtml(unsafe) {
     .replace(/'/g, "&#039;");
 }
 // New Bulk Endpoint
+// app.post(
+//   "/api/reports/bulk",
+//   upload.fields([
+//     { name: "csvFile", maxCount: 1 },
+//     { name: "photosZip", maxCount: 1 },
+//   ]),
+//   async (req, res) => {
+//     try {
+//       const { company, reporterName, reporterEmail, region } = req.body;
+//       const csvFile = req.files["csvFile"] ? req.files["csvFile"][0] : null;
+//       const photosZip = req.files["photosZip"]
+//         ? req.files["photosZip"][0]
+//         : null;
+
+//      if (!csvFile) {
+//         return res.status(400).json({ error: "CSV file is required" });
+//       }
+
+//        if (!photosZip) {
+//         return res.status(400).json({ error: "Zip file is required" });
+//       }
+
+//       if (!company || !reporterName || !reporterEmail || !region) {
+//         return res.status(400).json({ error: "Missing required common fields" });
+//       }
+
+//       // Parse CSV
+//       const csvData = Papa.parse(fs.readFileSync(csvFile.path, "utf8"), {
+//         header: true,
+//         skipEmptyLines: true,
+//       }).data;
+
+//         if (csvData.length === 0) {
+//         return res.status(400).json({ error: "CSV file is empty" });
+//       }
+
+//       console.log(`Processing ${csvData.length} reports from CSV`);
+
+//       // Validate each report fully
+//       const requiredFields = [
+//         "kitNumber",
+//         "peopleCovered",
+//         "peopleAccessing",
+//         "civicLocation",
+//         "freeAccessUsers",
+//         "additionalComments",
+//       ];
+//       csvData.forEach((row, index) => {
+//         requiredFields.forEach((field) => {
+//           if (!row[field])
+//             throw new Error(`Row ${index + 1} missing field: ${field}`);
+//         });
+//         if (row.civicLocation === "Others" && !row.otherLocation) {
+//           throw new Error(
+//             `Row ${index + 1} (kit ${
+//               row.kitNumber
+//             }): otherLocation required for civicLocation="Others"`
+//           );
+//         }
+//         // Type checks (basic)
+//         if (
+//           isNaN(row.peopleCovered) ||
+//           isNaN(row.peopleAccessing) ||
+//           isNaN(row.freeAccessUsers)
+//         ) {
+//           throw new Error(
+//             `Invalid numeric value in row for kit ${row.kitNumber}`
+//           );
+//         }
+//       });
+
+//       // Handle ZIP if provided
+//       const photoMap = {}; // kitNumber -> [paths]
+//       if (photosZip) {
+//         try{
+//            const zip = new AdmZip(photosZip.path);
+//         const zipEntries = zip.getEntries();
+//         const extractPath = path.join("uploads", `bulk_${Date.now()}`);
+//         fs.mkdirSync(extractPath, { recursive: true });
+        
+
+//         // let photoCount = 0;
+//         let photoCount = 0;
+//         zipEntries.forEach((entry) => {
+//           if (
+//             !entry.isDirectory &&
+//             entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)
+//           ) {
+//             const fileName = entry.entryName.split("/").pop();
+//             const kitNumber = fileName.split("_")[0]; // Assume format: KIT123_photo.jpg
+//             if (kitNumber) {
+//               const savePath = path.join(extractPath, fileName);
+//               zip.extractEntryTo(entry.entryName, extractPath, false, true);
+//               if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
+//               photoMap[kitNumber].push(savePath);
+//               photoCount++;
+//             }
+//           }
+//         });
+//         if (photoCount === 0) {
+//             console.warn("No valid photos found in ZIP");
+//           }
+//           } catch (zipError) {
+//           console.error("ZIP processing error:", zipError);
+//           return res.status(500).json({ error: "Failed to process ZIP file" });
+//         }
+//       }
+//       // Insert in transaction
+//       const client = await pool.connect();
+//       try {
+//         await client.query("BEGIN");
+
+//         const insertedIds = [];
+//         const values = [];
+//         csvData.forEach((row) => {
+//           const photoPaths = photoMap[row.kitNumber] || [];
+//           values.push([
+//             row.kitNumber,
+//             escapeHtml(company),
+//             escapeHtml(reporterName),
+//             escapeHtml(reporterEmail),
+//             escapeHtml(region),
+//             parseInt(row.peopleCovered),
+//             parseInt(row.peopleAccessing),
+//             escapeHtml(row.civicLocation),
+//             row.otherLocation ? escapeHtml(row.otherLocation) : null,
+//             parseInt(row.freeAccessUsers),
+//             escapeHtml(row.additionalComments),
+//             photoPaths,
+//           ]);
+//         });
+
+//         // Bulk insert (use a library like pg-copy-stream for even larger batches if needed, but this is fine for 600)
+//         for (let i = 0; i < values.length; i += 100) {
+//           // Batch in chunks of 100 to avoid query size limits
+//           const chunk = values.slice(i, i + 100);
+//           const flatValues = chunk.flat();
+//           const placeholders = chunk
+//             .map((_, idx) =>
+//               `(${Array.from({ length: 12 }, (_, j) => `$${idx * 12 + j + 1}`).join(',')})`
+//             )
+//             .join(',');
+//           const result = await client.query(
+//             `
+//           INSERT INTO public.reports (
+//             kit_number, company, reporter_name, reporter_email, region,
+//             people_covered, people_accessing, civic_location, other_location,
+//             free_access_users, additional_comments, infra_photos
+//           ) VALUES ${placeholders}
+//           RETURNING id;
+//         `,
+//             flatValues
+//           );
+//           insertedIds.push(...result.rows.map((r) => r.id));
+//         }
+//         await client.query("COMMIT");
+
+//         // Cleanup temp files
+//         if (csvFile) fs.unlinkSync(csvFile.path);
+//         if (photosZip) fs.unlinkSync(photosZip.path);
+
+//         // Generate summary CSV for download/attachment
+//         const summaryData = csvData.map((row, idx) => ({
+//           reportId: insertedIds[idx],
+//           kitNumber: row.kitNumber,
+//           company,
+//           reporterName,
+//           reporterEmail,
+//           region,
+//           peopleCovered: row.peopleCovered,
+//           peopleAccessing: row.peopleAccessing,
+//           civicLocation: row.civicLocation,
+//           otherLocation: row.otherLocation || "",
+//           freeAccessUsers: row.freeAccessUsers,
+//           additionalComments: row.additionalComments,
+//           infraPhotos: (photoMap[row.kitNumber] || []).join(", "),
+//         }));
+
+//         const csvContent = stringify(summaryData, { header: true });
+//         const timestamp = Date.now();
+//         const csvFilePath = path.join(
+//           "uploads",
+//           `bulk_summary_${timestamp}.csv`
+//         );
+//         fs.writeFileSync(csvFilePath, csvContent);
+//         const downloadUrl = `${
+//           process.env.API_BASE_URL || "https://api.unconnected.support"
+//         }/${csvFilePath}`;
+//         const csvBase64 = Buffer.from(csvContent).toString("base64");
+
+//         // Bulk Email Notification (summary)
+//         const baseUrl =
+//           process.env.API_BASE_URL || "https://api.unconnected.support";
+//         const summary = csvData
+//           .map((r) => {
+//             const photos = photoMap[r.kitNumber] || [];
+
+//             return `Kit ${escapeHtml(r.kitNumber)}: ${
+//               r.peopleCovered
+//             } covered, ${escapeHtml(
+//               r.additionalComments.substring(0, 50)
+//             )}... (${photos.length} photos)`;
+//           })
+//           .join("<br/>");
+//         const htmlTemplate = `
+//          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+//           <h1 style="color: #2c3e50; text-align: center;">${company} Impact Reports Submitted (${csvData.length} kits)</h1>
+//           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+//             <h2 style="color: #34495e; margin-top: 0;">Reporter Details</h2>
+//             <p><strong>Name:</strong> ${escapeHtml(reporterName)}</p>
+//             <p><strong>Email:</strong> ${escapeHtml(reporterEmail)}</p>
+//             <p><strong>Company:</strong> ${escapeHtml(company)}</p>
+//             <p><strong>Region:</strong> ${escapeHtml(region)}</p>
+
+//           </div>
+//           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+//             <h2 style="color: #34495e; margin-top: 0;">Summary</h2>
+//             ${summary}
+//           </div>
+//           <p>Download full summary: <a href="${downloadUrl}">bulk_summary_${timestamp}.csv</a></p>
+//         </div>
+//       `;
+
+//         let emailStatus = "success";
+//         try {
+//           console.log(
+//             "Sending bulk email to support@unconnected.org with attachment"
+//           );
+
+//           const mailRequest = await mailjet
+//             .post("send", { version: "v3.1" })
+//             .request({
+//               Messages: [
+//                 {
+//                   From: {
+//                     Email: process.env.EMAIL_USER || "support@unconnected.org",
+//                     Name: "Unconnected Impact Reporting",
+//                   },
+//                   To: [
+//                     {
+//                       Email: "support@unconnected.org",
+//                       Name: "Unconnected Support",
+//                     },
+//                   ],
+//                   Subject: `New Bulk Impact Reports (${csvData.length} kits)`,
+//                   HTMLPart: htmlTemplate,
+//                   Attachments: [
+//                     {
+//                       ContentType: "text/csv",
+//                       Filename: `bulk_summary_${timestamp}.csv`,
+//                       Base64Content: csvBase64,
+//                     },
+//                   ],
+//                 },
+//               ],
+//             });
+//           console.log("Bulk email sent successfully:", mailRequest.body);
+//         } catch (emailError) {
+//           emailStatus = "failed";
+//           console.error("Failed to send bulk email:", {
+//             message: emailError.message,
+//             response: emailError.response?.data,
+//             status: emailError.response?.status,
+//             stack: emailError.stack,
+//           });
+//         }
+
+//         res.json({
+//           success: true,
+//           message: "Bulk reports submitted",
+//           reportIds: insertedIds,
+//           emailStatus,
+//           downloadUrl, // Users can download the summary file from this URL
+//           photos: photoMap
+//         });
+//       } catch (e) {
+//         await client.query("ROLLBACK");
+//         throw e;
+//       } finally {
+//         client.release();
+//       }
+//     } catch (error) {
+//       console.error("Bulk report error:", error);
+//       res
+//         .status(500)
+//         .json({ error: error.message || "Failed to submit bulk reports" });
+//     }
+//   }
+// );
+
 app.post(
   "/api/reports/bulk",
-  upload.fields([
-    { name: "csvFile", maxCount: 1 },
-    { name: "photosZip", maxCount: 1 },
-  ]),
+  upload.fields([{ name: "csvFile", maxCount: 1 }, { name: "photosZip", maxCount: 1 }]),
   async (req, res) => {
     try {
       const { company, reporterName, reporterEmail, region } = req.body;
       const csvFile = req.files["csvFile"] ? req.files["csvFile"][0] : null;
-      const photosZip = req.files["photosZip"]
-        ? req.files["photosZip"][0]
-        : null;
+      const photosZip = req.files["photosZip"] ? req.files["photosZip"][0] : null;
 
-      if (!csvFile || !company || !reporterName || !reporterEmail || !region) {
-        return res
-          .status(400)
-          .json({ error: "Missing required fields or CSV file" });
+      if (!csvFile) {
+        return res.status(400).json({ error: "CSV file is required" });
+      }
+
+      if (!company || !reporterName || !reporterEmail || !region) {
+        return res.status(400).json({ error: "Missing required common fields" });
       }
 
       // Parse CSV
@@ -464,13 +751,9 @@ app.post(
         skipEmptyLines: true,
       }).data;
 
-        if (csvData.length === 0) {
-        return res.status(400).json({ error: "CSV file is empty" });
-      }
-
       console.log(`Processing ${csvData.length} reports from CSV`);
 
-      // Validate each report fully
+      // Validate each row
       const requiredFields = [
         "kitNumber",
         "peopleCovered",
@@ -481,247 +764,148 @@ app.post(
       ];
       csvData.forEach((row, index) => {
         requiredFields.forEach((field) => {
-          if (!row[field])
-            throw new Error(`Row ${index + 1} missing field: ${field}`);
+          if (!row[field]) throw new Error(`Row ${index + 1} missing ${field}`);
         });
         if (row.civicLocation === "Others" && !row.otherLocation) {
-          throw new Error(
-            `Row ${index + 1} (kit ${
-              row.kitNumber
-            }): otherLocation required for civicLocation="Others"`
-          );
-        }
-        // Type checks (basic)
-        if (
-          isNaN(row.peopleCovered) ||
-          isNaN(row.peopleAccessing) ||
-          isNaN(row.freeAccessUsers)
-        ) {
-          throw new Error(
-            `Invalid numeric value in row for kit ${row.kitNumber}`
-          );
+          throw new Error(`Row ${index + 1} (kit ${row.kitNumber}): otherLocation required`);
         }
       });
 
-      // Handle ZIP if provided
-      const photoMap = {}; // kitNumber -> [paths]
+      // Process ZIP if provided
+      const photoMap = {};
       if (photosZip) {
-        try{
-           const zip = new AdmZip(photosZip.path);
-        const zipEntries = zip.getEntries();
-        const extractPath = path.join("uploads", `bulk_${Date.now()}`);
-        fs.mkdirSync(extractPath, { recursive: true });
-        
+        try {
+          const zip = new AdmZip(photosZip.path);
+          const zipEntries = zip.getEntries();
+          const extractPath = path.join("uploads", `bulk_${Date.now()}`);
+          fs.mkdirSync(extractPath, { recursive: true });
+          console.log('ZIP entries found:', zipEntries.map(e => e.entryName));
 
-        // let photoCount = 0;
-        let photoCount = 0;
-        zipEntries.forEach((entry) => {
-          if (
-            !entry.isDirectory &&
-            entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)
-          ) {
-            const fileName = entry.entryName.split("/").pop();
-            const kitNumber = fileName.split("_")[0]; // Assume format: KIT123_photo.jpg
-            if (kitNumber) {
-              const savePath = path.join(extractPath, fileName);
-              zip.extractEntryTo(entry.entryName, extractPath, false, true);
-              if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
-              photoMap[kitNumber].push(savePath);
-              photoCount++;
+          zipEntries.forEach((entry) => {
+            if (!entry.isDirectory && entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)) {
+              const fileName = entry.entryName.split("/").pop();
+              const kitNumber = fileName.split("_")[0];
+              if (kitNumber) {
+                const savePath = path.join(extractPath, fileName);
+                zip.extractEntryTo(entry.entryName, extractPath, false, true);
+                if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
+                photoMap[kitNumber].push(savePath);
+              } else {
+                console.warn(`Skipping photo ${fileName}: Invalid naming format`);
+              }
             }
-          }
-        });
-        if (photoCount === 0) {
-            console.warn("No valid photos found in ZIP");
-          }
-          } catch (zipError) {
+          });
+        } catch (zipError) {
           console.error("ZIP processing error:", zipError);
           return res.status(500).json({ error: "Failed to process ZIP file" });
         }
       }
-      // Insert in transaction
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
 
-        const insertedIds = [];
-        const values = [];
-        csvData.forEach((row) => {
-          const photoPaths = photoMap[row.kitNumber] || [];
-          values.push([
-            row.kitNumber,
-            escapeHtml(company),
-            escapeHtml(reporterName),
-            escapeHtml(reporterEmail),
-            escapeHtml(region),
-            parseInt(row.peopleCovered),
-            parseInt(row.peopleAccessing),
-            escapeHtml(row.civicLocation),
-            row.otherLocation ? escapeHtml(row.otherLocation) : null,
-            parseInt(row.freeAccessUsers),
-            escapeHtml(row.additionalComments),
-            photoPaths,
-          ]);
-        });
-
-        // Bulk insert (use a library like pg-copy-stream for even larger batches if needed, but this is fine for 600)
-        for (let i = 0; i < values.length; i += 100) {
-          // Batch in chunks of 100 to avoid query size limits
-          const chunk = values.slice(i, i + 100);
-          const flatValues = chunk.flat();
-          const placeholders = chunk
-            .map((_, idx) =>
-              `(${Array.from({ length: 12 }, (_, j) => `$${idx * 12 + j + 1}`).join(',')})`
-            )
-            .join(',');
-          const result = await client.query(
-            `
+      // Insert reports into DB
+      const insertedIds = [];
+      const summaryRows = [];
+      for (const row of csvData) {
+        const photos = photoMap[row.kitNumber] || [];
+        const result = await pool.query(
+          `
           INSERT INTO public.reports (
             kit_number, company, reporter_name, reporter_email, region,
             people_covered, people_accessing, civic_location, other_location,
             free_access_users, additional_comments, infra_photos
-          ) VALUES ${placeholders}
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           RETURNING id;
         `,
-            flatValues
-          );
-          insertedIds.push(...result.rows.map((r) => r.id));
-        }
-        await client.query("COMMIT");
-
-        // Cleanup temp files
-        if (csvFile) fs.unlinkSync(csvFile.path);
-        if (photosZip) fs.unlinkSync(photosZip.path);
-
-        // Generate summary CSV for download/attachment
-        const summaryData = csvData.map((row, idx) => ({
-          reportId: insertedIds[idx],
-          kitNumber: row.kitNumber,
+          [
+            row.kitNumber,
+            company,
+            reporterName,
+            reporterEmail,
+            region,
+            parseInt(row.peopleCovered),
+            parseInt(row.peopleAccessing),
+            row.civicLocation,
+            row.otherLocation || null,
+            parseInt(row.freeAccessUsers),
+            row.additionalComments,
+            photos,
+          ]
+        );
+        insertedIds.push(result.rows[0].id);
+        summaryRows.push({
+          ...row,
           company,
           reporterName,
           reporterEmail,
           region,
-          peopleCovered: row.peopleCovered,
-          peopleAccessing: row.peopleAccessing,
-          civicLocation: row.civicLocation,
-          otherLocation: row.otherLocation || "",
-          freeAccessUsers: row.freeAccessUsers,
-          additionalComments: row.additionalComments,
-          infraPhotos: (photoMap[row.kitNumber] || []).join(", "),
-        }));
-
-        const csvContent = stringify(summaryData, { header: true });
-        const timestamp = Date.now();
-        const csvFilePath = path.join(
-          "uploads",
-          `bulk_summary_${timestamp}.csv`
-        );
-        fs.writeFileSync(csvFilePath, csvContent);
-        const downloadUrl = `${
-          process.env.API_BASE_URL || "https://api.unconnected.support"
-        }/${csvFilePath}`;
-        const csvBase64 = Buffer.from(csvContent).toString("base64");
-
-        // Bulk Email Notification (summary)
-        const baseUrl =
-          process.env.API_BASE_URL || "https://api.unconnected.support";
-        const summary = csvData
-          .map((r) => {
-            const photos = photoMap[r.kitNumber] || [];
-
-            return `Kit ${escapeHtml(r.kitNumber)}: ${
-              r.peopleCovered
-            } covered, ${escapeHtml(
-              r.additionalComments.substring(0, 50)
-            )}... (${photos.length} photos)`;
-          })
-          .join("<br/>");
-        const htmlTemplate = `
-         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
-          <h1 style="color: #2c3e50; text-align: center;">${company} Impact Reports Submitted (${csvData.length} kits)</h1>
-          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
-            <h2 style="color: #34495e; margin-top: 0;">Reporter Details</h2>
-            <p><strong>Name:</strong> ${escapeHtml(reporterName)}</p>
-            <p><strong>Email:</strong> ${escapeHtml(reporterEmail)}</p>
-            <p><strong>Company:</strong> ${escapeHtml(company)}</p>
-            <p><strong>Region:</strong> ${escapeHtml(region)}</p>
-
-          </div>
-          <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
-            <h2 style="color: #34495e; margin-top: 0;">Summary</h2>
-            ${summary}
-          </div>
-          <p>Download full summary: <a href="${downloadUrl}">bulk_summary_${timestamp}.csv</a></p>
-        </div>
-      `;
-
-        let emailStatus = "success";
-        try {
-          console.log(
-            "Sending bulk email to support@unconnected.org with attachment"
-          );
-
-          const mailRequest = await mailjet
-            .post("send", { version: "v3.1" })
-            .request({
-              Messages: [
-                {
-                  From: {
-                    Email: process.env.EMAIL_USER || "support@unconnected.org",
-                    Name: "Unconnected Impact Reporting",
-                  },
-                  To: [
-                    {
-                      Email: "support@unconnected.org",
-                      Name: "Unconnected Support",
-                    },
-                  ],
-                  Subject: `New Bulk Impact Reports (${csvData.length} kits)`,
-                  HTMLPart: htmlTemplate,
-                  Attachments: [
-                    {
-                      ContentType: "text/csv",
-                      Filename: `bulk_summary_${timestamp}.csv`,
-                      Base64Content: csvBase64,
-                    },
-                  ],
-                },
-              ],
-            });
-          console.log("Bulk email sent successfully:", mailRequest.body);
-        } catch (emailError) {
-          emailStatus = "failed";
-          console.error("Failed to send bulk email:", {
-            message: emailError.message,
-            response: emailError.response?.data,
-            status: emailError.response?.status,
-            stack: emailError.stack,
-          });
-        }
-
-        res.json({
-          success: true,
-          message: "Bulk reports submitted",
-          reportIds: insertedIds,
-          emailStatus,
-          downloadUrl, // Users can download the summary file from this URL
-          photos: photoMap
+          infraPhotos: photos.join(", "),
         });
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
       }
+
+      // Generate summary CSV
+      const timestamp = Date.now();
+      const summaryCsvPath = path.join("uploads", `bulk_summary_${timestamp}.csv`);
+      const summaryCsv = stringify(summaryRows, { header: true });
+      fs.writeFileSync(summaryCsvPath, summaryCsv);
+      const baseUrl = process.env.API_BASE_URL || "https://api.unconnected.support";
+      const downloadUrl = `${baseUrl}/${summaryCsvPath}`;
+
+      // Send email notification
+      let emailStatus = "success";
+      try {
+        let summary = "";
+        csvData.forEach((row) => {
+          const photos = photoMap[row.kitNumber] || [];
+          summary += `Kit ${row.kitNumber}: ${row.peopleCovered} covered, ${row.additionalComments}... (${photos.length} photos)<br/>`;
+        });
+
+        const htmlTemplate = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+            <h1 style="color: #2c3e50; text-align: center;">New Bulk Impact Reports Submitted</h1>
+            <p><strong>Reporter:</strong> ${reporterName} (${reporterEmail}, ${company})</p>
+            <p><strong>Region:</strong> ${region}</p>
+            <p><strong>Number of Reports:</strong> ${csvData.length}</p>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+              <h2>Summary</h2>
+              ${summary}
+            </div>
+            <p><a href="${downloadUrl}" target="_blank">Download Summary CSV</a></p>
+          </div>
+        `;
+
+        await mailjet.post("send", { version: "v3.1" }).request({
+          Messages: [
+            {
+              From: { Email: "support@unconnected.org", Name: "Unconnected Impact Reporting" },
+              To: [{ Email: "support@unconnected.org", Name: "Unconnected Support" }],
+              Subject: `New Bulk Impact Reports - ${company}`,
+              HTMLPart: htmlTemplate,
+            },
+          ],
+        });
+      } catch (emailError) {
+        console.error("Email sending failed:", emailError);
+        emailStatus = "failed";
+      }
+
+      // Cleanup uploaded files
+      fs.unlinkSync(csvFile.path);
+      if (photosZip) fs.unlinkSync(photosZip.path);
+
+      // Return response with photo paths
+      res.json({
+        success: true,
+        message: "Bulk reports submitted",
+        reportIds: insertedIds,
+        emailStatus,
+        downloadUrl,
+        photos: photoMap, // Includes kitNumber -> photo paths
+      });
     } catch (error) {
       console.error("Bulk report error:", error);
-      res
-        .status(500)
-        .json({ error: error.message || "Failed to submit bulk reports" });
+      res.status(500).json({ error: "Failed to submit bulk reports", details: error.message });
     }
   }
 );
-
 /**
  * @swagger
  * /api/auth/create-user:
