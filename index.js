@@ -161,6 +161,24 @@ app.post("/api/report", upload.array("infraPhotos", 10), async (req, res) => {
       ]
     );
 
+
+    // Prepare photo attachments
+    const attachments = [];
+    photoPaths.forEach((path) => {
+      const fileContent = fs.readFileSync(path);
+      const base64Content = fileContent.toString("base64");
+      const fileName = path.split("/").pop();
+      const contentType = fileName.match(/\.png$/i)
+        ? "image/png"
+        : fileName.match(/\.gif$/i)
+        ? "image/gif"
+        : "image/jpeg"; // Default to JPEG for jpg/jpeg
+      attachments.push({
+        ContentType: contentType,
+        Filename: fileName,
+        Base64Content: base64Content,
+      });
+    });
     // Optional: Email notification (using your Mailjet setup)
 
     // Add Mailjet code here if desired, e.g., notify admin of new report
@@ -511,6 +529,8 @@ app.post(
 
       // Handle ZIP if provided
       const photoMap = {}; // kitNumber -> [paths]
+        let photoCount = 0;
+         let extractPath;
       if (photosZip) {
         try{
            const zip = new AdmZip(photosZip.path);
@@ -520,7 +540,6 @@ app.post(
         
 
         // let photoCount = 0;
-        let photoCount = 0;
         zipEntries.forEach((entry) => {
           if (
             !entry.isDirectory &&
@@ -628,6 +647,23 @@ app.post(
         }/${csvFilePath}`;
         const csvBase64 = Buffer.from(csvContent).toString("base64");
 
+        // Create ZIP for email attachment
+        let photosZipBase64 = null;
+        if (photoCount > 0) {
+          const photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
+          const photosZip = new AdmZip();
+          Object.values(photoMap).forEach((photoPaths) => {
+            photoPaths.forEach((path) => {
+              const fileName = path.split("/").pop();
+              photosZip.addFile(fileName, fs.readFileSync(path));
+            });
+          });
+          photosZip.writeZip(photosZipPath);
+          photosZipBase64 = fs.readFileSync(photosZipPath).toString("base64");
+          fs.unlinkSync(photosZipPath);
+        }
+
+
         // Bulk Email Notification (summary)
         const baseUrl =
           process.env.API_BASE_URL || "https://api.unconnected.support";
@@ -661,6 +697,22 @@ app.post(
         </div>
       `;
 
+      const attachments = [
+          {
+            ContentType: "text/csv",
+            Filename: `bulk_summary_${timestamp}.csv`,
+            Base64Content: csvBase64,
+          },
+        ];
+        if (photosZipBase64) {
+          attachments.push({
+            ContentType: "application/zip",
+            Filename: `bulk_photos_${timestamp}.zip`,
+            Base64Content: photosZipBase64,
+          });
+        }
+
+        
         let emailStatus = "success";
         try {
           console.log(
