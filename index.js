@@ -12,7 +12,7 @@ const bcrypt = require("bcrypt");
 const { Pool } = require("pg");
 const Papa = require("papaparse");
 const { stringify } = require("csv-stringify/sync"); // For generating CSV
-
+const AdmZip = require("adm-zip");
 const app = express();
 const port = 3000;
 const cache = { token: null, exp: 0 };
@@ -40,7 +40,6 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 const multer = require("multer");
 const fs = require("fs");
-const AdmZip = require("adm-zip"); // NEW: For ZIP extraction
 const upload = multer({ dest: "uploads/" });
 // const upload = multer({ storage: multer.memoryStorage() });
 
@@ -533,41 +532,46 @@ app.post(
       let photoCount = 0;
 
       //  let extractPath;
-
-      try {
-        if (!photosZip) {
-    throw new Error("Photos ZIP file is missing");
-  }
-        const zip = new AdmZip(photosZip.path);
-        const zipEntries = zip.getEntries();
-        const extractPath = "uploads"; // Flat single folder
-        // const extractPath = path.join("uploads", `bulk_${Date.now()}`);
-        if (!fs.existsSync(extractPath)) {
-          fs.mkdirSync(extractPath, { recursive: true });
-        }
-
-        // let photoCount = 0;
-        zipEntries.forEach((entry) => {
-          if (
-            !entry.isDirectory &&
-            entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)
-          ) {
-            const fileName = entry.entryName.split("/").pop();
-            const savePath = path.join(extractPath, fileName);
-            zip.extractEntryTo(entry.entryName, extractPath, false, true);
-            if (!photoMap["all"]) photoMap["all"] = [];
-            photoMap["all"].push(savePath);
-            photoCount++;
-            console.log(`Processed image: ${fileName}`);
-          } else {
-            console.warn(
-              `Skipping entry ${entry.entryName}: Not an image or is a directory`
-            );
+      if (!photosZip) {
+        console.warn("No ZIP file provided, proceeding without photos");
+      } else {
+        try {
+          console.log("Processing ZIP file:", photosZip.path);
+          const zip = new AdmZip(photosZip.path);
+          const zipEntries = zip.getEntries();
+          const extractPath = "Uploads";
+          if (!fs.existsSync(extractPath)) {
+            fs.mkdirSync(extractPath, { recursive: true });
           }
-        });
-      } catch (zipError) {
-        console.error("ZIP processing error:", zipError);
-        return res.status(500).json({ error: "Failed to process ZIP file" });
+
+          console.log(
+            "ZIP Entries:",
+            zipEntries.map((e) => e.entryName)
+          );
+
+          // let photoCount = 0;
+          zipEntries.forEach((entry) => {
+            if (
+              !entry.isDirectory &&
+              entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)
+            ) {
+              const fileName = entry.entryName.split("/").pop();
+              const savePath = path.join(extractPath, fileName);
+              zip.extractEntryTo(entry.entryName, extractPath, false, true);
+              if (!photoMap["all"]) photoMap["all"] = [];
+              photoMap["all"].push(savePath);
+              photoCount++;
+              console.log(`Processed image: ${fileName}`);
+            } else {
+              console.warn(
+                `Skipping entry ${entry.entryName}: Not an image or is a directory`
+              );
+            }
+          });
+        } catch (zipError) {
+          console.error("ZIP processing error:", zipError);
+          return res.status(500).json({ error: "Failed to process ZIP file" });
+        }
       }
 
       // Insert in transaction
@@ -662,25 +666,29 @@ app.post(
         let photosZipBase64 = null;
         let photosZipPath = null;
         let photosZipDownloadUrl = null;
-        photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
-        const photosZip = new AdmZip();
-        if (photoCount > 0) {
-          Object.values(photoMap).forEach((photoPaths) => {
-            photoPaths.forEach((path) => {
-              const fileName = path.split("/").pop();
-              photosZip.addFile(fileName, fs.readFileSync(path));
+        if (photosZip) {
+          photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
+          const outputZip = new AdmZip();
+          if (photoCount > 0) {
+            Object.values(photoMap).forEach((photoPaths) => {
+              photoPaths.forEach((path) => {
+                const fileName = path.split("/").pop();
+                outputZip.addFile(fileName, fs.readFileSync(path));
+              });
             });
-          });
-        }else{
-          photosZip.addFile("no_images.txt", Buffer.from("No valid images found in the uploaded ZIP."));
-        }
-          photosZip.writeZip(photosZipPath);
+          } else {
+            outputZip.addFile(
+              "no_images.txt",
+              Buffer.from("No valid images found in the uploaded ZIP.")
+            );
+          }
+          outputZip.writeZip(photosZipPath);
           photosZipBase64 = fs.readFileSync(photosZipPath).toString("base64");
           photosZipDownloadUrl = `${
             process.env.API_BASE_URL || "https://api.unconnected.support"
           }/${photosZipPath}`;
           // fs.unlinkSync(photosZipPath);
-        
+        }
 
         // Bulk Email Notification (summary)
         const baseUrl =
@@ -801,7 +809,6 @@ app.post(
   }
 );
 
-// app.post(
 //   "/api/reports/bulk",
 //   upload.fields([
 //     { name: "csvFile", maxCount: 1 },
