@@ -11,7 +11,7 @@ const Mailjet = require("node-mailjet");
 const bcrypt = require("bcrypt");
 const { Pool } = require("pg");
 const Papa = require("papaparse");
-const {stringify} = require("csv-stringify/sync"); // For generating CSV
+const { stringify } = require("csv-stringify/sync"); // For generating CSV
 
 const app = express();
 const port = 3000;
@@ -160,7 +160,6 @@ app.post("/api/report", upload.array("infraPhotos", 10), async (req, res) => {
         photoPaths,
       ]
     );
-
 
     // Prepare photo attachments
     const attachments = [];
@@ -470,16 +469,18 @@ app.post(
         ? req.files["photosZip"][0]
         : null;
 
-     if (!csvFile) {
+      if (!csvFile) {
         return res.status(400).json({ error: "CSV file is required" });
       }
 
-       if (!photosZip) {
+      if (!photosZip) {
         return res.status(400).json({ error: "Zip file is required" });
       }
 
       if (!company || !reporterName || !reporterEmail || !region) {
-        return res.status(400).json({ error: "Missing required common fields" });
+        return res
+          .status(400)
+          .json({ error: "Missing required common fields" });
       }
 
       // Parse CSV
@@ -488,7 +489,7 @@ app.post(
         skipEmptyLines: true,
       }).data;
 
-        if (csvData.length === 0) {
+      if (csvData.length === 0) {
         return res.status(400).json({ error: "CSV file is empty" });
       }
 
@@ -531,17 +532,16 @@ app.post(
       const photoMap = {}; // kitNumber -> [paths]
       let photoCount = 0;
 
-        //  let extractPath;
-     
-        try{
-           const zip = new AdmZip(photosZip.path);
+      //  let extractPath;
+
+      try {
+        const zip = new AdmZip(photosZip.path);
         const zipEntries = zip.getEntries();
         const extractPath = "uploads"; // Flat single folder
         // const extractPath = path.join("uploads", `bulk_${Date.now()}`);
-       if (!fs.existsSync(extractPath)) {
-            fs.mkdirSync(extractPath, { recursive: true });
-          }
-        
+        if (!fs.existsSync(extractPath)) {
+          fs.mkdirSync(extractPath, { recursive: true });
+        }
 
         // let photoCount = 0;
         zipEntries.forEach((entry) => {
@@ -549,26 +549,24 @@ app.post(
             !entry.isDirectory &&
             entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)
           ) {
-           const fileName = entry.entryName.split("/").pop();
-           const kitMatch = fileName.match(/^([a-zA-Z0-9-]+)/i);
-           const kitNumber = kitMatch ? kitMatch[1].toUpperCase() : null;
-            if (kitNumber && csvData.some((row) => row.kitNumber.toUpperCase() === kitNumber)) {
-              const savePath = path.join(extractPath, fileName);
-              zip.extractEntryTo(entry.entryName, extractPath, false, true);
-              if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
-              photoMap[kitNumber].push(savePath);
-              photoCount++;
-            }
+            const fileName = entry.entryName.split("/").pop();
+            const savePath = path.join(extractPath, fileName);
+            zip.extractEntryTo(entry.entryName, extractPath, false, true);
+            if (!photoMap["all"]) photoMap["all"] = [];
+            photoMap["all"].push(savePath);
+            photoCount++;
+            console.log(`Processed image: ${fileName}`);
+          } else {
+            console.warn(
+              `Skipping entry ${entry.entryName}: Not an image or is a directory`
+            );
           }
         });
-        if (photoCount === 0) {
-            console.warn("No valid photos found in ZIP");
-          }
-          } catch (zipError) {
-          console.error("ZIP processing error:", zipError);
-          return res.status(500).json({ error: "Failed to process ZIP file" });
-        }
-      
+      } catch (zipError) {
+        console.error("ZIP processing error:", zipError);
+        return res.status(500).json({ error: "Failed to process ZIP file" });
+      }
+
       // Insert in transaction
 
       const client = await pool.connect();
@@ -601,10 +599,14 @@ app.post(
           const chunk = values.slice(i, i + 100);
           const flatValues = chunk.flat();
           const placeholders = chunk
-            .map((_, idx) =>
-              `(${Array.from({ length: 12 }, (_, j) => `$${idx * 12 + j + 1}`).join(',')})`
+            .map(
+              (_, idx) =>
+                `(${Array.from(
+                  { length: 12 },
+                  (_, j) => `$${idx * 12 + j + 1}`
+                ).join(",")})`
             )
-            .join(',');
+            .join(",");
           const result = await client.query(
             `
           INSERT INTO public.reports (
@@ -656,25 +658,27 @@ app.post(
         // Create ZIP for email attachment
         let photosZipBase64 = null;
         let photosZipPath = null;
-        photosZipDownloadUrl = null;
-    
+        let photosZipDownloadUrl = null;
+        photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
+        const photosZip = new AdmZip();
+
         if (photoCount > 0) {
-          photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
-          const photosZip = new AdmZip();
           Object.values(photoMap).forEach((photoPaths) => {
             photoPaths.forEach((path) => {
               const fileName = path.split("/").pop();
               photosZip.addFile(fileName, fs.readFileSync(path));
             });
           });
+        }else{
+          photosZip.addFile("no_images.txt", Buffer.from("No valid images found in the uploaded ZIP."));
+        }
           photosZip.writeZip(photosZipPath);
           photosZipBase64 = fs.readFileSync(photosZipPath).toString("base64");
-          photosZipDownloadUrl = `${process.env.API_BASE_URL || "https://api.unconnected.support"}/${photosZipPath}`;
+          photosZipDownloadUrl = `${
+            process.env.API_BASE_URL || "https://api.unconnected.support"
+          }/${photosZipPath}`;
           // fs.unlinkSync(photosZipPath);
         }
-
-        
-
 
         // Bulk Email Notification (summary)
         const baseUrl =
@@ -692,7 +696,9 @@ app.post(
           .join("<br/>");
         const htmlTemplate = `
          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
-          <h1 style="color: #2c3e50; text-align: center;">${company} Impact Reports Submitted (${csvData.length} kits)</h1>
+          <h1 style="color: #2c3e50; text-align: center;">${company} Impact Reports Submitted (${
+          csvData.length
+        } kits)</h1>
           <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
             <h2 style="color: #34495e; margin-top: 0;">Reporter Details</h2>
             <p><strong>Name:</strong> ${escapeHtml(reporterName)}</p>
@@ -707,15 +713,15 @@ app.post(
           </div>
           <p>Download full summary: <a href="${downloadUrl}">bulk_summary_${timestamp}.csv</a></p>
           ${
-      photosZipDownloadUrl
-        ? `<p>Download photos: <a href="${photosZipDownloadUrl}">bulk_photos_${timestamp}.zip</a></p>`
-        : `<p>No photos uploaded</p>`
-    }
+            photosZipDownloadUrl
+              ? `<p>Download photos: <a href="${photosZipDownloadUrl}">bulk_photos_${timestamp}.zip</a></p>`
+              : `<p>No photos uploaded</p>`
+          }
         
           </div>
       `;
 
-      const attachments = [
+        const attachments = [
           {
             ContentType: "text/csv",
             Filename: `bulk_summary_${timestamp}.csv`,
@@ -730,7 +736,6 @@ app.post(
           });
         }
 
-        
         let emailStatus = "success";
         try {
           console.log(
@@ -777,7 +782,7 @@ app.post(
           emailStatus,
           downloadUrl, // Users can download the summary file from this URL
           photosZipDownloadUrl,
-          photos: photoMap
+          photos: photoMap,
         });
       } catch (e) {
         await client.query("ROLLBACK");
@@ -1748,7 +1753,6 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-7393314-12390-10",
       "ACC-DF-9022857-69501-2",
 
-      
       "ACC-DF-8914998-17079-20",
     ];
     // Filter out unwanted accounts
