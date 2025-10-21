@@ -300,7 +300,7 @@ app.get("/api/reports", async (req, res) => {
 });
 
 // NEW: Serve images from uploads folder statically
-app.use("/uploads", express.static(path.join(__dirname, "Uploads")));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Helper Function: Get Bearer Token
 async function getBearerToken() {
