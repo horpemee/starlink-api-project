@@ -678,7 +678,7 @@ app.post(
             process.env.API_BASE_URL || "https://api.unconnected.support"
           }/${photosZipPath}`;
           // fs.unlinkSync(photosZipPath);
-        }
+        
 
         // Bulk Email Notification (summary)
         const baseUrl =
