@@ -531,7 +531,7 @@ app.post(
       const photoMap = {}; // kitNumber -> [paths]
       let photoCount = 0;
         //  let extractPath;
-      if (photosZip) {
+     
         try{
            const zip = new AdmZip(photosZip.path);
         const zipEntries = zip.getEntries();
@@ -548,9 +548,10 @@ app.post(
             !entry.isDirectory &&
             entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)
           ) {
-           let fileName = entry.entryName.split("/").pop();
-            const kitNumber = fileName.split("_")[0]; // Assume format: KIT123_photo.jpg
-            if (kitNumber) {
+           const fileName = entry.entryName.split("/").pop();
+           const kitMatch = fileName.match(/^([a-zA-Z0-9-]+)/i);
+           const kitNumber = kitMatch ? kitMatch[1].toUpperCase() : null;
+            if (kitNumber && csvData.some((row) => row.kitNumber.toUpperCase() === kitNumber)) {
               const savePath = path.join(extractPath, fileName);
               zip.extractEntryTo(entry.entryName, extractPath, false, true);
               if (!photoMap[kitNumber]) photoMap[kitNumber] = [];
@@ -566,8 +567,9 @@ app.post(
           console.error("ZIP processing error:", zipError);
           return res.status(500).json({ error: "Failed to process ZIP file" });
         }
-      }
+      
       // Insert in transaction
+
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
@@ -575,7 +577,7 @@ app.post(
         const insertedIds = [];
         const values = [];
         csvData.forEach((row) => {
-          const photoPaths = photoMap[row.kitNumber] || [];
+          const photoPaths = photoMap[row.kitNumber.toUpperCase()] || [];
           values.push([
             row.kitNumber,
             escapeHtml(company),
@@ -635,7 +637,7 @@ app.post(
           otherLocation: row.otherLocation || "",
           freeAccessUsers: row.freeAccessUsers,
           additionalComments: row.additionalComments,
-          infraPhotos: (photoMap[row.kitNumber] || []).join(", "),
+          infraPhotos: (photoMap[row.kitNumber.toUpperCase()] || []).join(", "),
         }));
 
         const csvContent = stringify(summaryData, { header: true });
@@ -662,8 +664,9 @@ app.post(
             });
           });
           photosZip.writeZip(photosZipPath);
-          photosZipBase64 = fs.readFileSync(photosZipPath).toString("base64");
-          fs.unlinkSync(photosZipPath);
+          const photosZipBase64 = fs.readFileSync(photosZipPath).toString("base64");
+          const photosZipDownloadUrl = `${process.env.API_BASE_URL || "https://api.unconnected.support"}/${photosZipPath}`;
+          // fs.unlinkSync(photosZipPath);
         }
 
 
@@ -672,7 +675,7 @@ app.post(
           process.env.API_BASE_URL || "https://api.unconnected.support";
         const summary = csvData
           .map((r) => {
-            const photos = photoMap[r.kitNumber] || [];
+            const photos = photoMap[r.kitNumber.toUpperCase()] || [];
 
             return `Kit ${escapeHtml(r.kitNumber)}: ${
               r.peopleCovered
@@ -697,7 +700,9 @@ app.post(
             ${summary}
           </div>
           <p>Download full summary: <a href="${downloadUrl}">bulk_summary_${timestamp}.csv</a></p>
-        </div>
+          <p>Download photos: <a href="${photosZipDownloadUrl}">bulk_photos_${timestamp}.zip</a></p>
+        
+          </div>
       `;
 
       const attachments = [
@@ -705,6 +710,11 @@ app.post(
             ContentType: "text/csv",
             Filename: `bulk_summary_${timestamp}.csv`,
             Base64Content: csvBase64,
+          },
+          {
+            ContentType: "application/zip",
+            Filename: `bulk_photos_${timestamp}.zip`,
+            Base64Content: photosZipBase64,
           },
         ];
         if (photosZipBase64) {
