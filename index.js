@@ -530,9 +530,7 @@ app.post(
       // Handle ZIP if provided
       const photoMap = {}; // kitNumber -> [paths]
       let photoCount = 0;
-      let photosZipPath = null;
-      let photosZipDownloadUrl = null;
-      let photosZipBase64 = null;
+
         //  let extractPath;
      
         try{
@@ -657,8 +655,11 @@ app.post(
 
         // Create ZIP for email attachment
         let photosZipBase64 = null;
+        let photosZipPath = null;
+        photosZipDownloadUrl = null;
+    
         if (photoCount > 0) {
-          const photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
+          photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
           const photosZip = new AdmZip();
           Object.values(photoMap).forEach((photoPaths) => {
             photoPaths.forEach((path) => {
@@ -667,10 +668,12 @@ app.post(
             });
           });
           photosZip.writeZip(photosZipPath);
-          const photosZipBase64 = fs.readFileSync(photosZipPath).toString("base64");
-          const photosZipDownloadUrl = `${process.env.API_BASE_URL || "https://api.unconnected.support"}/${photosZipPath}`;
+          photosZipBase64 = fs.readFileSync(photosZipPath).toString("base64");
+          photosZipDownloadUrl = `${process.env.API_BASE_URL || "https://api.unconnected.support"}/${photosZipPath}`;
           // fs.unlinkSync(photosZipPath);
         }
+
+        
 
 
         // Bulk Email Notification (summary)
@@ -703,7 +706,11 @@ app.post(
             ${summary}
           </div>
           <p>Download full summary: <a href="${downloadUrl}">bulk_summary_${timestamp}.csv</a></p>
-          <p>Download photos: <a href="${photosZipDownloadUrl}">bulk_photos_${timestamp}.zip</a></p>
+          ${
+      photosZipDownloadUrl
+        ? `<p>Download photos: <a href="${photosZipDownloadUrl}">bulk_photos_${timestamp}.zip</a></p>`
+        : `<p>No photos uploaded</p>`
+    }
         
           </div>
       `;
@@ -713,11 +720,6 @@ app.post(
             ContentType: "text/csv",
             Filename: `bulk_summary_${timestamp}.csv`,
             Base64Content: csvBase64,
-          },
-          {
-            ContentType: "application/zip",
-            Filename: `bulk_photos_${timestamp}.zip`,
-            Base64Content: photosZipBase64,
           },
         ];
         if (photosZipBase64) {
@@ -752,13 +754,7 @@ app.post(
                   ],
                   Subject: `New Bulk Impact Reports (${csvData.length} kits)`,
                   HTMLPart: htmlTemplate,
-                  Attachments: [
-                    {
-                      ContentType: "text/csv",
-                      Filename: `bulk_summary_${timestamp}.csv`,
-                      Base64Content: csvBase64,
-                    },
-                  ],
+                  Attachments: attachments,
                 },
               ],
             });
@@ -780,6 +776,7 @@ app.post(
           reportIds: insertedIds,
           emailStatus,
           downloadUrl, // Users can download the summary file from this URL
+          photosZipDownloadUrl,
           photos: photoMap
         });
       } catch (e) {
