@@ -529,14 +529,17 @@ app.post(
 
       // Handle ZIP if provided
       const photoMap = {}; // kitNumber -> [paths]
-        let photoCount = 0;
-         let extractPath;
+      let photoCount = 0;
+        //  let extractPath;
       if (photosZip) {
         try{
            const zip = new AdmZip(photosZip.path);
         const zipEntries = zip.getEntries();
-        const extractPath = path.join("uploads", `bulk_${Date.now()}`);
-        fs.mkdirSync(extractPath, { recursive: true });
+        const extractPath = "uploads"; // Flat single folder
+        // const extractPath = path.join("uploads", `bulk_${Date.now()}`);
+       if (!fs.existsSync(extractPath)) {
+            fs.mkdirSync(extractPath, { recursive: true });
+          }
         
 
         // let photoCount = 0;
@@ -545,7 +548,7 @@ app.post(
             !entry.isDirectory &&
             entry.entryName.match(/\.(jpg|jpeg|png|gif)$/i)
           ) {
-            const fileName = entry.entryName.split("/").pop();
+           let fileName = entry.entryName.split("/").pop();
             const kitNumber = fileName.split("_")[0]; // Assume format: KIT123_photo.jpg
             if (kitNumber) {
               const savePath = path.join(extractPath, fileName);
@@ -760,6 +763,7 @@ app.post(
         res.json({
           success: true,
           message: "Bulk reports submitted",
+          insertedCount: insertedIds.length,
           reportIds: insertedIds,
           emailStatus,
           downloadUrl, // Users can download the summary file from this URL
