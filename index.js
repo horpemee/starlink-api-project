@@ -535,6 +535,9 @@ app.post(
       //  let extractPath;
 
       try {
+        if (!photosZip) {
+    throw new Error("Photos ZIP file is missing");
+  }
         const zip = new AdmZip(photosZip.path);
         const zipEntries = zip.getEntries();
         const extractPath = "uploads"; // Flat single folder
@@ -661,7 +664,6 @@ app.post(
         let photosZipDownloadUrl = null;
         photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
         const photosZip = new AdmZip();
-
         if (photoCount > 0) {
           Object.values(photoMap).forEach((photoPaths) => {
             photoPaths.forEach((path) => {
