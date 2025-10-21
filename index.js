@@ -530,6 +530,9 @@ app.post(
       // Handle ZIP if provided
       const photoMap = {}; // kitNumber -> [paths]
       let photoCount = 0;
+      let photosZipPath = null;
+      let photosZipDownloadUrl = null;
+      let photosZipBase64 = null;
         //  let extractPath;
      
         try{
