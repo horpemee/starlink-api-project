@@ -633,6 +633,10 @@ app.post(
         if (csvFile) fs.unlinkSync(csvFile.path);
         if (photosZip) fs.unlinkSync(photosZip.path);
 
+        // Get original file names from Multer
+        const csvOriginalName = req.files["csvFile"][0].originalname;
+        const zipOriginalName = req.files["photosZip"] ? req.files["photosZip"][0].originalname : null;
+
         // Generate summary CSV for download/attachment
         const summaryData = csvData.map((row, idx) => ({
           reportId: insertedIds[idx],
@@ -652,10 +656,12 @@ app.post(
 
         const csvContent = stringify(summaryData, { header: true });
         const timestamp = Date.now();
-        const csvFilePath = path.join(
-          "uploads",
-          `bulk_summary_${timestamp}.csv`
-        );
+        const csvBaseName = csvOriginalName.replace(/\.csv$/i, '');
+        const csvFilePath = path.join("uploads", `${csvBaseName}_summary_${timestamp}.csv`);
+        // const csvFilePath = path.join(
+        //   "uploads",
+        //   `bulk_summary_${timestamp}.csv`
+        // );
         fs.writeFileSync(csvFilePath, csvContent);
         const downloadUrl = `${
           process.env.API_BASE_URL || "https://api.unconnected.support"
@@ -667,7 +673,9 @@ app.post(
         let photosZipPath = null;
         let photosZipDownloadUrl = null;
         if (photosZip) {
-          photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
+          // photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
+          const zipBaseName = zipOriginalName.replace(/\.zip$/i, '');   
+          photosZipPath = path.join("uploads", `${zipBaseName}_processed_${timestamp}.zip`);
           const outputZip = new AdmZip();
           if (photoCount > 0) {
             Object.values(photoMap).forEach((photoPaths) => {
@@ -721,10 +729,11 @@ app.post(
             <h2 style="color: #34495e; margin-top: 0;">Summary</h2>
             ${summary}
           </div>
-          <p>Download Report: <a href="${downloadUrl}">bulk_summary_${timestamp}.csv</a></p>
+          <p>Download Report: <a href="${downloadUrl}">${path.basename(csvFilePath)}</a></p>
+          // <p>Download Report: <a href="${downloadUrl}">bulk_summary_${timestamp}.csv</a></p>
           ${
             photosZipDownloadUrl
-              ? `<p>Download infrastructure photos: <a href="${photosZipDownloadUrl}">bulk_photos_${timestamp}.zip</a></p>`
+              ? `<p>Download infrastructure photos: <a href="${photosZipDownloadUrl}">${path.basename(photosZipPath)}</a></p>`
               : `<p>No photos uploaded</p>`
           }
         
