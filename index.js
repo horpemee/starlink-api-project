@@ -657,7 +657,7 @@ app.post(
         const csvContent = stringify(summaryData, { header: true });
         const timestamp = Date.now();
         const csvBaseName = csvOriginalName.replace(/\.csv$/i, '');
-        const csvFilePath = path.join("uploads", `${csvBaseName}_summary_${timestamp}.csv`);
+        const csvFilePath = path.join("uploads", `${csvBaseName}.csv`);
         // const csvFilePath = path.join(
         //   "uploads",
         //   `bulk_summary_${timestamp}.csv`
@@ -675,7 +675,7 @@ app.post(
         if (photosZip) {
           // photosZipPath = path.join("uploads", `bulk_photos_${timestamp}.zip`);
           const zipBaseName = zipOriginalName.replace(/\.zip$/i, '');   
-          photosZipPath = path.join("uploads", `${zipBaseName}_processed_${timestamp}.zip`);
+          photosZipPath = path.join("uploads", `${zipBaseName}.zip`);
           const outputZip = new AdmZip();
           if (photoCount > 0) {
             Object.values(photoMap).forEach((photoPaths) => {
@@ -732,7 +732,7 @@ app.post(
           <p>Download Report: <a href="${downloadUrl}">${path.basename(csvFilePath)}</a></p>
           ${
             photosZipDownloadUrl
-              ? `<p>Download infrastructure photos: <a href="${photosZipDownloadUrl}">${path.basename(photosZipPath)}</a></p>`
+              ? `<p>Download infrastructure photos: <a href="${photosZipDownloadUrl}">bulk_photos_${timestamp}.zip</a></p>`
               : `<p>No photos uploaded</p>`
           }
         
@@ -742,14 +742,14 @@ app.post(
         const attachments = [
           {
             ContentType: "text/csv",
-            Filename: `path.basename.csv`,
+            Filename: `${path.basename(csvFilePath)}.csv`,
             Base64Content: csvBase64,
           },
         ];
         if (photosZipBase64) {
           attachments.push({
             ContentType: "application/zip",
-            Filename: `path.basename.zip`,
+            Filename: `bulk_photos_${timestamp}.zip`,
             Base64Content: photosZipBase64,
           });
         }
