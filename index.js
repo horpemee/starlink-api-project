@@ -732,7 +732,7 @@ app.post(
           <p>Download Report: <a href="${downloadUrl}">${path.basename(csvFilePath)}</a></p>
           ${
             photosZipDownloadUrl
-              ? `<p>Download infrastructure photos: <a href="${photosZipDownloadUrl}">bulk_photos_${timestamp}.zip</a></p>`
+              ? `<p>Download infrastructure photos: <a href="${photosZipDownloadUrl}">${path.basename(zipBaseName)}</a></p>`
               : `<p>No photos uploaded</p>`
           }
         
@@ -742,14 +742,14 @@ app.post(
         const attachments = [
           {
             ContentType: "text/csv",
-            Filename: `${path.basename(csvFilePath)}.csv`,
+            Filename: `${path.basename(csvFilePath)}`,
             Base64Content: csvBase64,
           },
         ];
         if (photosZipBase64) {
           attachments.push({
             ContentType: "application/zip",
-            Filename: `bulk_photos_${timestamp}.zip`,
+            Filename: ` ${path.basename(zipBaseName)}`,
             Base64Content: photosZipBase64,
           });
         }
