@@ -1,0 +1,28 @@
+<article class="SuperHubDoc-article3ArTrEavUTKg rm-Article rm-Guides-SuperHub"><header id="content-head"><div class="row clearfix"><div class="col-xs-9"><h1>API V2 Service Accounts</h1><div class="excerpt"><div class="rm-Markdown markdown-body" data-testid="RDMD"><p>API Credentials and Keys</p></div></div></div></div></header><div class="grid-container-fluid" id="content-container"><section class="content-body grid-75 "><div style="margin-left:31px" class="rm-Markdown markdown-body rm-Markdown markdown-body ng-non-bindable" data-testid="RDMD"><style>/*! tailwindcss v4.1.17 | MIT License | https://tailwindcss.com */
+@layer theme, base, components, utilities;
+@layer utilities;
+</style><style data-tailwind-stylesheet="true"></style><p>A V2 service account is required to use the V2 API. A service account is a ClientId, permission set, and secret set. A service account may define several valid OIDC credentials.</p>
+<h2 class="heading heading-2 header-scroll"><div class="heading-anchor anchor waypoint" id="what-changed"></div><div class="heading-text">What Changed?</div><a aria-label="Skip link to What Changed?" class="heading-anchor-icon fa fa-regular fa-anchor" href="#what-changed"></a></h2>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="access"></div><div class="heading-text">Access</div><a aria-label="Skip link to Access" class="heading-anchor-icon fa fa-regular fa-anchor" href="#access"></a></h3>
+<p>API V1 service accounts are linked to a Starlink user and allow API access for any Starlink account the user was on.</p>
+<p>API V2 service accounts are linked to a <strong>Starlink account</strong> and exist independently of the user that created them. V2 service accounts will remain valid until disabled, even if the user that created the service account is no longer on the account.</p>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="roles-role-based-access-control"></div><div class="heading-text">Roles (Role Based Access Control)</div><a aria-label="Skip link to Roles (Role Based Access Control)" class="heading-anchor-icon fa fa-regular fa-anchor" href="#roles-role-based-access-control"></a></h3>
+<p>API V2 service accounts can only access endpoints according to their assigned permissions. Review the API reference to understand which endpoint requires which permission.</p>
+<h2 class="heading heading-2 header-scroll"><div class="heading-anchor anchor waypoint" id="who-can-make-v2-service-accounts"></div><div class="heading-text">Who can make V2 Service Accounts</div><a aria-label="Skip link to Who can make V2 Service Accounts" class="heading-anchor-icon fa fa-regular fa-anchor" href="#who-can-make-v2-service-accounts"></a></h2>
+<p>Creating or editing API V2 service accounts can be done by any user who has the &quot;Admin&quot; or &quot;Service Account Management&quot; role. Users can select which permissions an API V2 service account will have - up to the user&#x27;s individual permissions.</p>
+<p>Any user with permission to create or update V2 service accounts also has permission to <strong>disable</strong> previously created V2 service accounts. This permission should be given to trusted users only.</p>
+<p>Any user with the role <strong>Admin</strong>, <strong>Technical</strong>, <strong>Technical Read Only</strong>, <strong>Technical Configuration</strong>, or <strong>Service Account Management</strong> can see the list of existing V2 service accounts.</p>
+<p>Although service account secrets (aka keys) can be deleted, the overall service account structure can only be disabled. This design is to preserve traceability.</p></div><div align="center" class="Flex Flex_row " justify="between" style="--flex-gap:var(--md)"><div class="UpdatedAt"><p class="DateLine "><i class="icon icon-watch"></i>Updated<!-- --> <!-- -->about 2 months ago<!-- --> </p></div></div><hr class="NextStepsDivider"/><nav aria-label="Pagination Controls" class="PaginationControlsjDYuqu8pBMUy rm-Pagination"><a class="PaginationControls-link254uPEbaP92i PaginationControls-link_left1G58BmNHDbVm" aria-label="Previous Page: Getting Started" href="/docs/getting-started"><span class="PaginationControls-iconZbaZ3tgyhNmI icon-arrow-left2"></span><div class="PaginationControls-text3qEXHZU00znD PaginationControls-text_left3wBkn4C9R0W_">Getting Started</div></a><a class="PaginationControls-link254uPEbaP92i PaginationControls-link_right5lsfuICZqXYk" aria-label="Next Page: Migrating from V1 to V2" href="/docs/migrating-from-v1-to-v2"><div class="PaginationControls-text3qEXHZU00znD PaginationControls-text_right3EIfWubgRVVP">Migrating from V1 to V2</div><span class="PaginationControls-iconZbaZ3tgyhNmI icon-arrow-right2"></span></a></nav></section><section class="content-toc grid-25 "><nav aria-label="Table of contents" role="navigation"><ul class="toc-list"><li><a class="tocHeader" href="#"><i class="icon icon-text-align-left"></i>Table of Contents</a></li><li class="toc-children"><ul>
+<li>
+<a href="#what-changed">What Changed?</a>
+</li>
+<li>
+<ul>
+<li><a href="#access">Access</a></li>
+<li><a href="#roles-role-based-access-control">Roles (Role Based Access Control)</a></li>
+</ul>
+</li>
+<li>
+<a href="#who-can-make-v2-service-accounts">Who can make V2 Service Accounts</a>
+</li>
+</ul></li></ul></nav></section></div></article>

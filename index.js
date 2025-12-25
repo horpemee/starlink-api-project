@@ -17,6 +17,8 @@ const app = express();
 const port = 3000;
 const cache = { token: null, exp: 0 };
 const saltRounds = 10;
+// Per-account v2 token cache: Map<accountKey, { token, exp }>
+const v2TokenCache = new Map();
 
 // Mailjet configuration
 const mailjet = new Mailjet({
@@ -48,6 +50,13 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
 const mapkey = process.env.GOOGLE_MAP_KEY;
+// Optional override for Starlink v2 API base; falls back to v1 base if not set
+const STARLINK_BASE_URL_V2 =
+  process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public";
+// Optional default v2 credentials (used only if no per-account entry is found)
+const V2_DEFAULT_CLIENT_ID = process.env.V2_CLIENT_ID;
+const V2_DEFAULT_CLIENT_SECRET = process.env.V2_CLIENT_SECRET;
+const V2_CREDENTIALS_JSON = process.env.STARLINK_V2_CREDENTIALS || "{}";
 
 const MockAPI = require("./mocks/mock");
 
@@ -328,6 +337,63 @@ async function getBearerToken() {
       error.response?.data || error.message
     );
     throw new Error("Failed to get bearer token");
+  }
+}
+
+function parseV2CredentialStore() {
+  try {
+    return JSON.parse(V2_CREDENTIALS_JSON);
+  } catch (err) {
+    console.error("Failed to parse STARLINK_V2_CREDENTIALS JSON:", err.message);
+    return {};
+  }
+}
+
+function getV2Credentials(account) {
+  const store = parseV2CredentialStore();
+  const key = account || "__default__";
+  if (store[key]) return store[key];
+  if (V2_DEFAULT_CLIENT_ID && V2_DEFAULT_CLIENT_SECRET) {
+    return { clientId: V2_DEFAULT_CLIENT_ID, clientSecret: V2_DEFAULT_CLIENT_SECRET };
+  }
+  return null;
+}
+
+async function getBearerTokenV2(account) {
+  const accountKey = account || "__default__";
+  const cached = v2TokenCache.get(accountKey);
+  if (cached && Date.now() < cached.exp) {
+    return cached.token;
+  }
+
+  const creds = getV2Credentials(accountKey);
+  if (!creds) {
+    throw new Error(
+      `No v2 credentials configured for account '${accountKey}'. Set STARLINK_V2_CREDENTIALS or V2_CLIENT_ID/V2_CLIENT_SECRET.`
+    );
+  }
+
+  try {
+    const response = await axios.post(
+      "https://www.starlink.com/api/auth/connect/token",
+      {
+        grant_type: "client_credentials",
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
+      },
+      { headers: { "Content-type": "application/x-www-form-urlencoded" } }
+    );
+
+    const token = response.data.access_token;
+    const exp = Date.now() + (response.data.expires_in - 60) * 1000;
+    v2TokenCache.set(accountKey, { token, exp });
+    return token;
+  } catch (error) {
+    console.error(
+      `Error getting v2 bearer token for account '${accountKey}':`,
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to get v2 bearer token");
   }
 }
 
@@ -901,6 +967,56 @@ async function makeAuthedPost(path, body = {}) {
   return response.data;
 }
 
+// Starlink v2 helpers (separate base to allow dual-stack)
+async function makeAuthedGetV2(account, path) {
+  const token = await getBearerTokenV2(account);
+  const { data } = await axios.get(`${STARLINK_BASE_URL_V2}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data;
+}
+
+async function makeAuthedPutV2(account, path, body = {}) {
+  console.log("[makeAuthedPutV2] called with ::", path, body);
+  const token = await getBearerTokenV2(account);
+  const response = await axios.put(
+    `${STARLINK_BASE_URL_V2}${path}`,
+    body,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      validateStatus: () => true,
+    }
+  );
+  return response.data;
+}
+
+async function makeAuthedDeleteV2(account, path) {
+  console.log("[makeAuthedDeleteV2] called with ::", path);
+  const token = await getBearerTokenV2(account);
+  const response = await axios.delete(
+    `${STARLINK_BASE_URL_V2}${path}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      validateStatus: () => true,
+    }
+  );
+  return response.data;
+}
+
+async function makeAuthedPostV2(account, path, body = {}) {
+  console.log("[makeAuthedPostV2] called with ::", path, body);
+  const token = await getBearerTokenV2(account);
+  const response = await axios.post(
+    `${STARLINK_BASE_URL_V2}${path}`,
+    body,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      validateStatus: () => true,
+    }
+  );
+  return response.data;
+}
+
 // Send OTP Email via Mailjet
 async function sendOtpEmail(email, otp, purpose = "signup") {
   try {
@@ -1312,6 +1428,89 @@ const API =
         },
       };
 
+const API_V2 =
+  process.env.NODE_ENV === "development"
+    ? MockAPI
+    : {
+        createAddress: async (acct, payload) => {
+          const reversedAddress = await reversePlusCode(payload.googlePlusCode);
+          if (
+            reversedAddress.status !== "OK" ||
+            !reversedAddress.results ||
+            reversedAddress.results.length === 0
+          ) {
+            return {
+              message: "Error occurred while retrieving address details",
+              data: reversedAddress,
+            };
+          }
+          const googleResult = reversedAddress.results[0];
+          const formattedAddress = googleResult.formatted_address;
+          const parts = formattedAddress.split(",");
+          const administrativeAreaCode =
+            parts.length >= 2 ? parts[1].trim() : payload.regionCode;
+          const latitude = googleResult.geometry.location.lat;
+          const longitude = googleResult.geometry.location.lng;
+
+          const accountRenames = {
+            "ACC-6814367-50278-22": "PH",
+            "ACC-7580055-64428-19": "PH",
+            "ACC-7071161-50554-7": "PH",
+            "ACC-DF-9012567-86171-1": "PH",
+            "ACC-DF-9012511-23590-86": "PH",
+            "ACC-7393314-12390-10": "NG",
+            "ACC-DF-9012430-88305-91": "NG",
+            "ACC-DF-8910267-22774-3": "MX",
+            "ACC-DF-8944908-16857-17": "MX",
+            "ACC-DF-8914998-17079-20": "KE",
+          };
+          const regionCode = accountRenames[acct] || payload.regionCode;
+
+          const newPayload = {
+            addressLines: [formattedAddress],
+            administrativeAreaCode,
+            regionCode: regionCode,
+            formattedAddress,
+            latitude,
+            longitude,
+          };
+
+          return makeAuthedPostV2(acct, `/v2/addresses`, newPayload);
+        },
+        getAvailableProducts: (acct) => {
+          return makeAuthedGetV2(
+            acct,
+            `/v2/products`
+          );
+        },
+        createServiceLine: async (acct, payload) => {
+          return makeAuthedPostV2(acct, `/v2/service-lines`, payload);
+        },
+        updateServiceLineNickname: (acct, serviceLineNumber, body) =>
+          makeAuthedPutV2(
+            acct,
+            `/v2/service-lines/${serviceLineNumber}/nickname`,
+            body
+          ),
+        listUserTerminals: (acct, params = "") =>
+          makeAuthedGetV2(acct, `/v2/user-terminals${params}`),
+        addUserTerminal: (acct, deviceId) =>
+          makeAuthedPostV2(acct, `/v2/user-terminals`, { deviceId }),
+        attachTerminal: (acct, terminalId, serviceLineNumber) =>
+          makeAuthedPostV2(
+            acct,
+            `/v2/service-lines/${serviceLineNumber}/user-terminals`,
+            { deviceId: terminalId }
+          ),
+
+        removeDeviceFromAccount: (acct, deviceId) => {
+          return makeAuthedDeleteV2(
+            acct,
+            `/v2/user-terminals/${deviceId}`
+          );
+        },
+      };
+
 async function activateStarlink({
   accountNumber,
   address,
@@ -1328,7 +1527,7 @@ async function activateStarlink({
   const addressRes = await API.createAddress(accountNumber, address);
   const addressNumber = addressRes.content.addressReferenceId;
   if (!addressNumber)
-    throw new Error("Address creation failed – missing addressNumber");
+    throw new Error("Address creation failed - missing addressNumber");
 
   // 2. Validate product code
   const products = await API.getAvailableProducts(accountNumber);
@@ -1344,7 +1543,7 @@ async function activateStarlink({
   // });
   const serviceLineNumber = "SL-5125237-18809-76 "; //serviceLineRes.content.serviceLineNumber;
   if (!serviceLineNumber)
-    throw new Error("Service line creation failed – missing serviceLineNumber");
+    throw new Error("Service line creation failed - missing serviceLineNumber");
 
   //3.x Add nickname to serviceline :::::
   const nicknameRes = await API.updateServiceLineNickname(
@@ -1387,6 +1586,94 @@ async function activateStarlink({
 
   // 5. Attach terminal to service line
   const attachRes = await API.attachTerminal(
+    accountNumber,
+    userTerminalId,
+    serviceLineNumber
+  );
+
+  return {
+    address: addressRes,
+    serviceLine: serviceLineRes,
+    userTerminal: userTerminalRes,
+    attach: attachRes,
+  };
+}
+
+async function activateStarlinkV2({
+  accountNumber,
+  address,
+  kitNumber,
+  nickname,
+}) {
+  console.log("[activateStarlinkV2] called with :::");
+  if (!accountNumber || !address || !kitNumber || !nickname)
+    throw new Error(
+      "accountNumber, address, productCode and userTerminalId are required"
+    );
+
+  // 1. Create address
+  const addressRes = await API_V2.createAddress(accountNumber, address);
+  const addressNumber =
+    addressRes.content?.addressReferenceId ||
+    addressRes.content?.addressNumber ||
+    addressRes.addressReferenceId;
+  if (!addressNumber)
+    throw new Error("Address creation failed - missing addressReferenceId");
+
+  // 2. Validate product code
+  const products = await API_V2.getAvailableProducts(accountNumber);
+  const prods = products.content?.results || products.results || [];
+  if (prods.length === 0)
+    throw new Error("No product available for the supplied account number");
+
+  // 3. Create service line
+  const serviceLineRes = await API_V2.createServiceLine(accountNumber, {
+    addressReferenceId: addressNumber,
+    productReferenceId: prods[0].productReferenceId,
+  });
+  const serviceLineNumber =
+    serviceLineRes.content?.serviceLineNumber ||
+    serviceLineRes.serviceLineNumber;
+  if (!serviceLineNumber)
+    throw new Error("Service line creation failed - missing serviceLineNumber");
+
+  //3.x Add nickname to service line
+  const nicknameRes = await API_V2.updateServiceLineNickname(
+    accountNumber,
+    serviceLineNumber,
+    { nickname }
+  );
+
+  if (nicknameRes.errors && nicknameRes.errors.length > 0) {
+    throw Error(nicknameRes.errors[0].errorMessage);
+  }
+
+  const userTerminalRes = await API_V2.addUserTerminal(accountNumber, kitNumber);
+
+  if (userTerminalRes.errors && userTerminalRes.errors.length > 0) {
+    throw Error(userTerminalRes.errors[0].errorMessage);
+  }
+
+  const allTerminals = await API_V2.listUserTerminals(
+    accountNumber,
+    `?searchString=${kitNumber}`
+  );
+
+  if (allTerminals.errors && allTerminals.errors.length > 0) {
+    throw Error(allTerminals.errors[0].errorMessage);
+  }
+
+  const myTerminal = (allTerminals.content?.results || []).filter(
+    (x) => x.kitSerialNumber === kitNumber || x.serialNumber === kitNumber
+  );
+
+  if (myTerminal.length <= 0) {
+    throw Error("Terminal has not been added to account");
+  }
+  const userTerminalId = myTerminal[0].userTerminalId;
+
+  // 5. Attach terminal to service line
+  const attachRes = await API_V2.attachTerminal(
     accountNumber,
     userTerminalId,
     serviceLineNumber
@@ -1472,6 +1759,33 @@ app.get("/api/accounts", async (req, res) => {
     res
       .status(err.response?.status || 500)
       .json({ error: err.response?.data || "Could not fetch accounts" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v2/account:
+ *   get:
+ *     summary: Get account info (v2, single account tied to token)
+ *     tags: [Accounts v2]
+ *     responses:
+ *       200: { description: Account details }
+ */
+app.get("/api/v2/account", async (req, res) => {
+  try {
+    const account = req.query.account;
+    if (!account) {
+      return res
+        .status(400)
+        .json({ error: "account query parameter is required for v2" });
+    }
+    const data = await makeAuthedGetV2(account, `/v2/account`);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json({ error: err.response?.data || "Could not fetch account (v2)" });
   }
 });
 
@@ -1564,6 +1878,37 @@ app.post("/api/accounts/:account/addresses", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/addresses:
+ *   post:
+ *     summary: Create an address (v2)
+ *     tags: [Address v2]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         schema: { type: string }
+ *         required: true
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/AddressCreateRequest' }
+ *     responses:
+ *       200: { description: Address created }
+ */
+app.post("/api/v2/accounts/:account/addresses", async (req, res) => {
+  try {
+    const data = await API_V2.createAddress(req.params.account, req.body);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json({ error: err.response?.data || err.message });
+  }
+});
+
 // (b) get available products (already existed but keeping consistent path)
 
 /**
@@ -1583,6 +1928,32 @@ app.post("/api/accounts/:account/addresses", async (req, res) => {
 app.get("/api/accounts/:account/products", async (req, res) => {
   try {
     const data = await API.getAvailableProducts(req.params.account);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json({ error: err.response?.data || err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/products:
+ *   get:
+ *     summary: List available products for an account (v2)
+ *     tags: [Products v2]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: List of products }
+ */
+app.get("/api/v2/accounts/:account/products", async (req, res) => {
+  try {
+    const data = await API_V2.getAvailableProducts(req.params.account);
     res.json(data);
   } catch (err) {
     console.error(err.response?.data || err.message);
@@ -1643,6 +2014,35 @@ app.get("/api/accounts/:account/servicelines", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/servicelines:
+ *   get:
+ *     summary: List available service lines (v2)
+ *     tags: [ServiceLines v2]
+ *     parameters:
+ *      - in : path
+ *        name : account
+ *        required : true
+ *        schema : {type : string }
+ *     responses:
+ *       200: { description: List of service lines }
+ */
+app.get("/api/v2/accounts/:account/servicelines", async (req, res) => {
+  try {
+    const data = await makeAuthedGetV2(
+      req.params.account,
+      `/v2/service-lines`
+    );
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json({ error: err.response?.data || err.message });
+  }
+});
+
 // (c) create service line
 /**
  * @swagger
@@ -1684,6 +2084,158 @@ app.patch(
   async (req, res) => {
     try {
       const data = await API.updateServiceLineNickname(
+        req.params.account,
+        req.params.serviceid,
+        req.body
+      );
+      res.json(data);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      res
+        .status(err.response?.status || 500)
+        .json({ error: err.response?.data || err.message });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/user-terminals/{deviceId}:
+ *   delete:
+ *     summary: Remove a device from an account (v2)
+ *     tags: [UserTerminals v2]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: deviceId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Device removed }
+ */
+app.delete(
+  "/api/v2/accounts/:account/user-terminals/:deviceId",
+  async (req, res) => {
+    try {
+      const { account, deviceId } = req.params;
+      const result = await API_V2.removeDeviceFromAccount(account, deviceId);
+      res.json(result);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      res
+        .status(err.response?.status || 500)
+        .json({ error: err.response?.data || err.message });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/user-terminals/{terminalId}/{serviceLineNumber}:
+ *   post:
+ *     summary: Attach a terminal to a service line (v2)
+ *     tags: [UserTerminals v2]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: terminalId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: serviceLineNumber
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Terminal attached }
+ */
+app.post(
+  "/api/v2/accounts/:account/user-terminals/:terminalId/:serviceLineNumber",
+  async (req, res) => {
+    try {
+      const { account, terminalId, serviceLineNumber } = req.params;
+      const result = await API_V2.attachTerminal(
+        account,
+        terminalId,
+        serviceLineNumber
+      );
+      res.json(result);
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      res
+        .status(err.response?.status || 500)
+        .json({ error: err.response?.data || err.message });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/service-lines:
+ *   post:
+ *     summary: Create a service line (v2)
+ *     tags: [ServiceLines v2]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/ServiceLineRequest' }
+ *     responses:
+ *       200: { description: Service line created }
+ */
+app.post("/api/v2/accounts/:account/service-lines", async (req, res) => {
+  try {
+    const data = await API_V2.createServiceLine(req.params.account, req.body);
+    res.json(data);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json({ error: err.response?.data || err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/service-lines/{serviceid}:
+ *   patch:
+ *     summary: Update a service line nickname (v2)
+ *     tags: [ServiceLines v2]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: serviceid
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nickname: { type: string }
+ *     responses:
+ *       200: { description: Service line updated }
+ */
+app.patch(
+  "/api/v2/accounts/:account/service-lines/:serviceid",
+  async (req, res) => {
+    try {
+      const data = await API_V2.updateServiceLineNickname(
         req.params.account,
         req.params.serviceid,
         req.body
@@ -1811,6 +2363,41 @@ app.post("/api/activate", async (req, res) => {
 
 /**
  * @swagger
+ * /api/v2/activate:
+ *   post:
+ *     summary: Activate a Starlink terminal via v2 APIs
+ *     tags: [Activation v2]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/ActivationRequest' }
+ *     responses:
+ *       200:
+ *         description: Activation succeeded
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ActivationResponse' }
+ *       400: { description: Activation failed }
+ */
+app.post("/api/v2/activate", async (req, res) => {
+  const { accountNumber, address, kitNumber, nickname } = req.body;
+  try {
+    const result = await activateStarlinkV2({
+      accountNumber,
+      address,
+      kitNumber,
+      nickname,
+    });
+    res.json({ status: "activated", ...result });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: err.message || "Activation failed" });
+  }
+});
+
+/**
+ * @swagger
  * /api/accounts/{account}/user-terminals/{deviceId}:
  *   post:
  *     summary: Add a user terminal to an account
@@ -1873,6 +2460,42 @@ app.post(
     } catch (err) {
       console.error(err);
       res.status(400).json({ error: err.message || "Failed to add terminal" });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/user-terminals/{deviceId}:
+ *   post:
+ *     summary: Add a user terminal to an account (v2)
+ *     tags: [UserTerminals v2]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: deviceId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Terminal added successfully }
+ */
+app.post(
+  "/api/v2/accounts/:account/user-terminals/:deviceId",
+  async (req, res) => {
+    try {
+      const addResult = await API_V2.addUserTerminal(
+        req.params.account,
+        req.params.deviceId
+      );
+      res.json(addResult);
+    } catch (err) {
+      console.error(err);
+      res.status(400).json({
+        error: err.message || "Failed to add terminal (v2)",
+      });
     }
   }
 );
@@ -2166,6 +2789,71 @@ app.get("/api/accounts/:account/validate-kit/:kitNumber", async (req, res) => {
     console.error(err);
     res.status(400).json({
       error: err.message || "Failed to validate kit number",
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v2/accounts/{account}/validate-kit/{kitNumber}:
+ *   get:
+ *     summary: Validate if a kit number is registered to an account (v2)
+ *     tags: [UserTerminals v2]
+ *     parameters:
+ *       - in: path
+ *         name: account
+ *         required: true
+ *         schema: { type: string }
+ *       - in: path
+ *         name: kitNumber
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Kit validation result }
+ *       400: { description: Validation failed }
+ */
+app.get("/api/v2/accounts/:account/validate-kit/:kitNumber", async (req, res) => {
+  try {
+    const { account, kitNumber } = req.params;
+    const addResult = await API_V2.addUserTerminal(account, kitNumber);
+    const userTerminals = await API_V2.listUserTerminals(
+      account,
+      `?searchString=${kitNumber}`
+    );
+
+    if (userTerminals.errors && userTerminals.errors.length > 0) {
+      throw new Error(userTerminals.errors[0].errorMessage);
+    }
+    const terminal = (userTerminals.content?.results || []).find(
+      (t) => t.kitSerialNumber === kitNumber && t.active === true
+    );
+
+    if (addResult.errors && addResult.errors.length > 0) {
+      if (!terminal) {
+        return res.status(400).json({
+          isRegistered: false,
+          error:
+            addResult.errors[0].errorMessage ||
+            "Kit number not registered to this account",
+        });
+      } else {
+        return res.json({
+          isRegistered: true,
+          existing: true,
+          terminalDetails: terminal,
+        });
+      }
+    }
+
+    return res.json({
+      isRegistered: !!terminal,
+      terminalDetails: terminal,
+      existing: !!terminal,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({
+      error: err.message || "Failed to validate kit number (v2)",
     });
   }
 });

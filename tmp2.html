@@ -1,0 +1,354 @@
+<article class="SuperHubDoc-article3ArTrEavUTKg rm-Article rm-Guides-SuperHub"><header id="content-head"><div class="row clearfix"><div class="col-xs-9"><h1>Migrating from V1 to V2</h1></div></div></header><div class="grid-container-fluid" id="content-container"><section class="content-body grid-75 "><div style="margin-left:31px" class="rm-Markdown markdown-body rm-Markdown markdown-body ng-non-bindable" data-testid="RDMD"><style>/*! tailwindcss v4.1.17 | MIT License | https://tailwindcss.com */
+@layer theme, base, components, utilities;
+@layer utilities;
+</style><style data-tailwind-stylesheet="true"></style><h2 class="heading heading-2 header-scroll"><div class="heading-anchor anchor waypoint" id="timeline"></div><div class="heading-text">Timeline</div><a aria-label="Skip link to Timeline" class="heading-anchor-icon fa fa-regular fa-anchor" href="#timeline"></a></h2>
+<p>Starlink V1 API will be <strong>deprecated May 1, 2026</strong></p>
+<p>All v1 endpoints should be expected to return errors after that date. As Starlink has grown the V1 API authorization model of linking service accounts to users has shown its shortcomings. The Starlink V2 API establishes a new auth paradigm of linking V2 service accounts to the Starlink account instead, and will be maintained for future API versions. We understand this deprecation of V1 incurs significant migration pain, but we believe that the security benefits of V2 are worth it.</p>
+<h2 class="heading heading-2 header-scroll"><div class="heading-anchor anchor waypoint" id="auth"></div><div class="heading-text">Auth</div><a aria-label="Skip link to Auth" class="heading-anchor-icon fa fa-regular fa-anchor" href="#auth"></a></h2>
+<p>The V2 API biggest change from V1 is that a single service account can only be used to make API calls for the unique Starlink account it is linked to. This means that any integration that requires calling the Starlink API for multiple different Starlink accounts will need to employ logic to maintain and refresh multiple bearer tokens, and attach them to requests as needed.</p>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="service-accounts"></div><div class="heading-text">Service accounts</div><a aria-label="Skip link to Service accounts" class="heading-anchor-icon fa fa-regular fa-anchor" href="#service-accounts"></a></h3>
+<p>Integrations with the Starlink V1 API were able to utilize a single V1 service account to make calls to any Starlink account that the creating user was a contact on. In V2 this requires creating separate V2 service accounts for every Starlink account that you want to interact with the API for. The process of creating V2 service accounts can only occur on the Starlink.com <a target="_self" href="https://starlink.com/account/settings">settings page </a> .</p>
+<br/>
+<h2 class="heading heading-2 header-scroll"><div class="heading-anchor anchor waypoint" id="endpoint-migration-guide"></div><div class="heading-text">Endpoint Migration Guide</div><a aria-label="Skip link to Endpoint Migration Guide" class="heading-anchor-icon fa fa-regular fa-anchor" href="#endpoint-migration-guide"></a></h2>
+<p>The exact specifications of all V2 endpoints can be found in the API reference section. This guide aims to highlight key changes from v1 endpoints to their equivalent v2 endpoint.</p>
+<p>Note that all V2 endpoints are relative to the single Starlink account that is linked to the bearer token attached on requests. As a result the <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">/accounts/{accountNumber}</code> prefix is not present on any V2 endpoints. All pagination limit parameters were removed in v2. The default page size is 100 unless otherwise specified.</p>
+<p><strong>Base path change</strong>: As part of the release of V2 API Starlink has changed the request path from <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">web-api.starlink.com/enterprise/</code> to <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">starlink.com/api/public</code>. Starlink will continue to support the legacy path until the deprecation of V1 API on May 1, 2026, but all integrations with V2 API should use the new path to avoid issues.</p>
+<ul>
+<li>Telemetry stream: The v1 path of <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">web-api.starlink.com/telemetry/stream/v1/telemetry</code> will only be maintained until the deprecation date. Instead when migrating to V2 streaming use the new path of <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">starlink.com/api/public/v2/telemetry/stream</code>.</li>
+</ul>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accounts"></div><div class="heading-text">GET v1/accounts</div><a aria-label="Skip link to GET v1/accounts" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accounts"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET /v2/account</code> (<a target="_self" href="/reference/get_public-v2-account">Get account information</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li>All request parameters were removed</li>
+</ul>
+</li>
+<li>Response:<!-- -->
+<ul>
+<li>This now returns account info for the single Starlink account the token is linked too, instead of a paginated list of accounts.</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountsaccountnumberbilling-cyclesquery"></div><div class="heading-text">POST v1/accounts/{accountNumber}/billing-cycles/query</div><a aria-label="Skip link to POST v1/accounts/{accountNumber}/billing-cycles/query" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountsaccountnumberbilling-cyclesquery"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/data-usage/query</code> (<a target="_self" href="/reference/post_public-v2-data-usage-query">Get data usage</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">serviceLinesFilter</code> body parameter changed to <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">serviceLineNumbers</code></li>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">queryStartDateParam</code> body parameter removed</li>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">pageIndex</code> body parameter moved to query parameter named <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">page</code> (<button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">v2/data-usage/query?page=1</code>)</li>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">pageLimit</code> body parameter removed</li>
+</ul>
+</li>
+<li>Response: unchanged</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberservice-linesavailable-products"></div><div class="heading-text">GET v1/account/{accountNumber}/service-lines/available-products</div><a aria-label="Skip link to GET v1/account/{accountNumber}/service-lines/available-products" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberservice-linesavailable-products"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/products</code> (<a target="_self" href="/reference/get_public-v2-products">Get products</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">limit</code> query parameter removed. Page size is 100 in v2</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberaddresses"></div><div class="heading-text">GET v1/account/{accountNumber}/addresses</div><a aria-label="Skip link to GET v1/account/{accountNumber}/addresses" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberaddresses"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/addresses</code> (<a target="_self" href="/reference/get_public-v2-addresses">Get all addresses</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberaddressesaddressreferenceid"></div><div class="heading-text">GET v1/account/{accountNumber}/addresses/{addressReferenceId}</div><a aria-label="Skip link to GET v1/account/{accountNumber}/addresses/{addressReferenceId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberaddressesaddressreferenceid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/addresses/{addressReferenceId}</code> (<a target="_self" href="/reference/get_public-v2-addresses-addressreferenceid">Get address</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberaddressesaddressreferenceid"></div><div class="heading-text">POST v1/account/{accountNumber}/addresses/{addressReferenceId}</div><a aria-label="Skip link to POST v1/account/{accountNumber}/addresses/{addressReferenceId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberaddressesaddressreferenceid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/addresses</code> (<a target="_self" href="/reference/post_public-v2-addresses">Create address</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberaddresses"></div><div class="heading-text">PUT v1/account/{accountNumber}/addresses</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/addresses" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberaddresses"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/addresses/{addressReferenceId}</code> (<a target="_self" href="/reference/put_public-v2-addresses-addressreferenceid">Update address</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">addressReferenceId</code> body parameter moved to be query parameter</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberaddressescheck-capacity"></div><div class="heading-text">POST v1/account/{accountNumber}/addresses/check-capacity</div><a aria-label="Skip link to POST v1/account/{accountNumber}/addresses/check-capacity" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberaddressescheck-capacity"></a></h3>
+<p>No equivalent v2 endpoint. Creating or updating service lines will check capacity internally and return error messages if there isn&#x27;t sufficient capacity.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberroutersrouterid"></div><div class="heading-text">GET v1/account/{accountNumber}/routers/{routerId}</div><a aria-label="Skip link to GET v1/account/{accountNumber}/routers/{routerId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberroutersrouterid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/routers/{routerId}</code> (<a target="_self" href="/reference/get_public-v2-routers-routerid">Get router</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberroutersconfigs"></div><div class="heading-text">GET v1/account/{accountNumber}/routers/configs</div><a aria-label="Skip link to GET v1/account/{accountNumber}/routers/configs" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberroutersconfigs"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/routers/configs</code> (<a target="_self" href="/reference/get_public-v2-routers-configs">Get all router configs</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberroutersconfigsconfigid"></div><div class="heading-text">GET v1/account/{accountNumber}/routers/configs/{configId}</div><a aria-label="Skip link to GET v1/account/{accountNumber}/routers/configs/{configId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberroutersconfigsconfigid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/routers/configs/{configId}</code> (<a target="_self" href="/reference/get_public-v2-routers-configs-configid">Get router config</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberroutersconfigs"></div><div class="heading-text">POST v1/account/{accountNumber}/routers/configs</div><a aria-label="Skip link to POST v1/account/{accountNumber}/routers/configs" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberroutersconfigs"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/routers/configs</code> (<a target="_self" href="/reference/post_public-v2-routers-configs">Create router config</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberroutersconfigsconfigid"></div><div class="heading-text">PUT v1/account/{accountNumber}/routers/configs/{configId}</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/routers/configs/{configId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberroutersconfigsconfigid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/routers/configs/{configId}</code> (<a target="_self" href="/reference/put_public-v2-routers-configs-configid">Update router config</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberroutersbatch-config"></div><div class="heading-text">PUT v1/account/{accountNumber}/routers/batch-config</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/routers/batch-config" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberroutersbatch-config"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/routers/configs/assign</code> (<a target="_self" href="/reference/put_public-v2-routers-configs-assign">Router config assignment</a>)</p>
+<p>Differences: V2 config assignment is all done using a single endpoint that allows assigning a specific config (or none) to a list of routers. All V1 config assignment operations can be accomplished using the V2 endpoint. See V2 config assignment endpoint for exact request format.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberroutersrouteridconfig"></div><div class="heading-text">PUT v1/account/{accountNumber}/routers/{routerId}/config</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/routers/{routerId}/config" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberroutersrouteridconfig"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/routers/configs/assign</code> (<a target="_self" href="/reference/put_public-v2-routers-configs-assign">Router config assignment</a>)</p>
+<p>Differences: V2 config assignment is all done using a single endpoint that allows assigning a specific config (or none) to a list of routers. All V1 config assignment operations can be accomplished using the V2 endpoint. See V2 config assignment endpoint for exact request format.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="delete-v1accountaccountnumberroutersrouteridconfig"></div><div class="heading-text">DELETE v1/account/{accountNumber}/routers/{routerId}/config</div><a aria-label="Skip link to DELETE v1/account/{accountNumber}/routers/{routerId}/config" class="heading-anchor-icon fa fa-regular fa-anchor" href="#delete-v1accountaccountnumberroutersrouteridconfig"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/routers/configs/assign</code> (<a target="_self" href="/reference/put_public-v2-routers-configs-assign">Router config assignment</a>)</p>
+<p>Differences: V2 config assignment is all done using a single endpoint that allows assigning a specific config (or none) to a list of routers. All V1 config assignment operations can be accomplished using the V2 endpoint. See V2 config assignment endpoint for exact request format.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberupdate-default-router-config"></div><div class="heading-text">PUT v1/account/{accountNumber}/update-default-router-config</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/update-default-router-config" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberupdate-default-router-config"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/routers/configs/default</code> (<a target="_self" href="/reference/put_public-v2-routers-configs-default">Set default router config</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberrouter-local-content"></div><div class="heading-text">GET v1/account/{accountNumber}/router-local-content</div><a aria-label="Skip link to GET v1/account/{accountNumber}/router-local-content" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberrouter-local-content"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/routers/local-content</code> (<a target="_self" href="/reference/get_public-v2-routers-local-content">Get list of router local content files</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Response:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">fileMD5Hash</code> field renamed to <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">fileContentHash</code> to align with the field name in router config HTTPS server section</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberrouter-local-content"></div><div class="heading-text">POST v1/account/{accountNumber}/router-local-content</div><a aria-label="Skip link to POST v1/account/{accountNumber}/router-local-content" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberrouter-local-content"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/routers/local-content</code> (<a target="_self" href="/reference/post_public-v2-routers-local-content">Upload router local content file</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Response:<!-- -->
+<ul>
+<li>Now returns object containing <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">fileContentId</code> and <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">fileContentHash</code> for the uploaded file, which are the values that can be put in the router config HTTPS server section to specify local content.</li>
+</ul>
+</li>
+</ul>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberrouterssandboxclients"></div><div class="heading-text">GET v1/account/{accountNumber}/routers/sandbox/clients</div><a aria-label="Skip link to GET v1/account/{accountNumber}/routers/sandbox/clients" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberrouterssandboxclients"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/routers/sandbox/clients</code> (<a target="_self" href="/reference/get_public-v2-routers-sandbox-clients">Get sandbox clients</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberrouterssandboxclients"></div><div class="heading-text">POST v1/account/{accountNumber}/routers/sandbox/clients</div><a aria-label="Skip link to POST v1/account/{accountNumber}/routers/sandbox/clients" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberrouterssandboxclients"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/routers/sandbox/clients</code> (<a target="_self" href="/reference/post_public-v2-routers-sandbox-clients">Update sandbox clients</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberrouterssandboxsandboxid"></div><div class="heading-text">POST v1/account/{accountNumber}/routers/sandbox/{sandboxId}</div><a aria-label="Skip link to POST v1/account/{accountNumber}/routers/sandbox/{sandboxId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberrouterssandboxsandboxid"></a></h3>
+<p>No equivalent V2 version.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberrouterssandboxheartbeat"></div><div class="heading-text">PUT v1/account/{accountNumber}/routers/sandbox/heartbeat</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/routers/sandbox/heartbeat" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberrouterssandboxheartbeat"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/routers/sandbox/heartbeat</code>(<a target="_self" href="/reference/put_public-v2-routers-sandbox-heartbeat">Update sandbox heartbeat</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberroutersrouteridreboot"></div><div class="heading-text">POST v1/account/{accountNumber}/routers/{routerId}/reboot</div><a aria-label="Skip link to POST v1/account/{accountNumber}/routers/{routerId}/reboot" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberroutersrouteridreboot"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/routers/{routerId}/reboot</code> (<a target="_self" href="/reference/post_public-v2-routers-routerid-reboot">Reboot router</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberupdate-default-router-tls-domain"></div><div class="heading-text">PUT v1/account/{accountNumber}/update-default-router-tls-domain</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/update-default-router-tls-domain" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberupdate-default-router-tls-domain"></a></h3>
+<p>No equivalent V2 version at this time.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberrouterstls-config"></div><div class="heading-text">GET v1/account/{accountNumber}/routers/tls-config</div><a aria-label="Skip link to GET v1/account/{accountNumber}/routers/tls-config" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberrouterstls-config"></a></h3>
+<p>No equivalent V2 version at this time.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberrouterstls-config"></div><div class="heading-text">POST v1/account/{accountNumber}/routers/tls-config</div><a aria-label="Skip link to POST v1/account/{accountNumber}/routers/tls-config" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberrouterstls-config"></a></h3>
+<p>No equivalent V2 version at this time.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="delete-v1accountaccountnumberrouterstls-config"></div><div class="heading-text">DELETE v1/account/{accountNumber}/routers/tls-config</div><a aria-label="Skip link to DELETE v1/account/{accountNumber}/routers/tls-config" class="heading-anchor-icon fa fa-regular fa-anchor" href="#delete-v1accountaccountnumberrouterstls-config"></a></h3>
+<p>No equivalent V2 version at this time.</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberservice-lines"></div><div class="heading-text">GET v1/account/{accountNumber}/service-lines</div><a aria-label="Skip link to GET v1/account/{accountNumber}/service-lines" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberservice-lines"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/service-lines</code> (<a target="_self" href="/reference/get_public-v2-service-lines">Get all service lines</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">limit</code> query parameter removed. Page size is 100</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberservice-linesservicelinenumber"></div><div class="heading-text">GET v1/account/{accountNumber}/service-lines/{serviceLineNumber}</div><a aria-label="Skip link to GET v1/account/{accountNumber}/service-lines/{serviceLineNumber}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberservice-linesservicelinenumber"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/service-lines/{serviceLineNumber}</code> (<a target="_self" href="/reference/get_public-v2-service-lines-servicelinenumber">Get service line</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberservice-lines"></div><div class="heading-text">POST v1/account/{accountNumber}/service-lines</div><a aria-label="Skip link to POST v1/account/{accountNumber}/service-lines" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberservice-lines"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/service-lines</code></p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="delete-v1accountaccountnumberservice-linesservicelinenumber"></div><div class="heading-text">DELETE v1/account/{accountNumber}/service-lines/{serviceLineNumber}</div><a aria-label="Skip link to DELETE v1/account/{accountNumber}/service-lines/{serviceLineNumber}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#delete-v1accountaccountnumberservice-linesservicelinenumber"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">DELETE v2/service-lines/{serviceLineNumber}</code> (<a target="_self" href="/reference/post_public-v2-service-lines">Create service line</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberservice-linesservicelinenumbernickname"></div><div class="heading-text">PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/nickname</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/nickname" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberservice-linesservicelinenumbernickname"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/service-lines/{serviceLineNumber}/nickname</code> (<a target="_self" href="/reference/put_public-v2-service-lines-servicelinenumber-nickname">Update service line nickname</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberservice-linesservicelinenumberproductproductreferenceid"></div><div class="heading-text">PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/product/{productReferenceId}</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/product/{productReferenceId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberservice-linesservicelinenumberproductproductreferenceid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/service-lines/{serviceLineNumber}/product</code></p>
+<p>Differences: The PUT and POST versions of this V1 endpoint do the same thing but one supports specifying data blocks. For V2 these have been combined to a single endpoint, <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/service-lines/{serviceLineNumber}/product</code></p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">productReferenceId</code> query parameter moved to be body parameter</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberservice-linesservicelinenumberproductproductreferenceid"></div><div class="heading-text">POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/product/{productReferenceId}</div><a aria-label="Skip link to POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/product/{productReferenceId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberservice-linesservicelinenumberproductproductreferenceid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/service-lines/{serviceLineNumber}/product</code> (<a target="_self" href="/reference/put_public-v2-service-lines-servicelinenumber-product">Update service line product</a>)</p>
+<p>Differences: The PUT and POST versions of this V1 endpoint do the same thing but one supports specifying data blocks. For V2 these have been combined to a single endpoint, <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/service-lines/{serviceLineNumber}/product</code></p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">productReferenceId</code> query parameter moved to be body parameter</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="put-v1accountaccountnumberservice-linesservicelinenumberrecurring-data"></div><div class="heading-text">PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/recurring-data</div><a aria-label="Skip link to PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/recurring-data" class="heading-anchor-icon fa fa-regular fa-anchor" href="#put-v1accountaccountnumberservice-linesservicelinenumberrecurring-data"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">PUT v2/service-lines/{serviceLineNumber}/data/recurring</code> (<a target="_self" href="/reference/put_public-v2-service-lines-servicelinenumber-data-recurring">Set recurring data blocks on service line</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberservice-linesservicelinenumbertop-up-data"></div><div class="heading-text">POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/top-up-data</div><a aria-label="Skip link to POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/top-up-data" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberservice-linesservicelinenumbertop-up-data"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/service-lines/{serviceLineNumber}/data/top-up</code> (<a target="_self" href="/reference/post_public-v2-service-lines-servicelinenumber-data-top-up">Add one time top up data block to service line</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberservice-linesservicelinenumberopt-in"></div><div class="heading-text">POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/opt-in</div><a aria-label="Skip link to POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/opt-in" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberservice-linesservicelinenumberopt-in"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/service-lines/{serviceLineNumber}/data/opt-in</code> (<a target="_self" href="/reference/post_public-v2-service-lines-servicelinenumber-data-opt-in">Opt in priority data</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="delete-v1accountaccountnumberservice-linesservicelinenumberopt-out"></div><div class="heading-text">DELETE v1/account/{accountNumber}/service-lines/{serviceLineNumber}/opt-out</div><a aria-label="Skip link to DELETE v1/account/{accountNumber}/service-lines/{serviceLineNumber}/opt-out" class="heading-anchor-icon fa fa-regular fa-anchor" href="#delete-v1accountaccountnumberservice-linesservicelinenumberopt-out"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/service-lines/{serviceLineNumber}/data/opt-out</code> (<a target="_self" href="/reference/post_public-v2-service-lines-servicelinenumber-data-opt-out">Opt out priority data</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberservice-linesservicelinenumberbilling-cyclepartial-periods"></div><div class="heading-text">GET v1/account/{accountNumber}/service-lines/{serviceLineNumber}/billing-cycle/partial-periods</div><a aria-label="Skip link to GET v1/account/{accountNumber}/service-lines/{serviceLineNumber}/billing-cycle/partial-periods" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberservice-linesservicelinenumberbilling-cyclepartial-periods"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/service-lines/{serviceLineNumber}/billing-cycles/partial-periods</code> (<a target="_self" href="/reference/post_public-v2-service-lines-servicelinenumber-data-opt-out">Get billing partial periods</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberuser-terminalsuserterminalidservicelinenumber"></div><div class="heading-text">POST v1/account/{accountNumber}/user-terminals/{userTerminalId}/{serviceLineNumber}</div><a aria-label="Skip link to POST v1/account/{accountNumber}/user-terminals/{userTerminalId}/{serviceLineNumber}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberuser-terminalsuserterminalidservicelinenumber"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/service-lines/{serviceLineNumber}/user-terminals</code> (<a target="_self" href="/reference/post_public-v2-service-lines-servicelinenumber-user-terminals">Add user terminal to service line</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">userTerminalId</code> query parameter replaced with body parameter <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">deviceId</code> which can instead be a userTerminalId, Kit #, or serial number.</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="delete-v1accountaccountnumberuser-terminalsuserterminalidservicelinenumber"></div><div class="heading-text">DELETE v1/account/{accountNumber}/user-terminals/{userTerminalId}/{serviceLineNumber}</div><a aria-label="Skip link to DELETE v1/account/{accountNumber}/user-terminals/{userTerminalId}/{serviceLineNumber}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#delete-v1accountaccountnumberuser-terminalsuserterminalidservicelinenumber"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">DELETE v2/service-lines/{serviceLineNumber}/user-terminals</code> (<a target="_self" href="/reference/delete_public-v2-service-lines-servicelinenumber-user-terminals-deviceid">Remove user terminal from service line</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">deviceId</code> query parameter replaced with body parameter <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">deviceId</code> which can still be a userTerminalId, Kit #, or serial number.</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberservice-linesservicelinenumberpublic-ip"></div><div class="heading-text">POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/public-ip</div><a aria-label="Skip link to POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/public-ip" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberservice-linesservicelinenumberpublic-ip"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/service-lines/{serviceLineNumber}/public-ip</code> (<a target="_self" href="/reference/put_public-v2-service-lines-servicelinenumber-public-ip">Set service line public IP setting</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="get-v1accountaccountnumberuser-terminals"></div><div class="heading-text">GET v1/account/{accountNumber}/user-terminals</div><a aria-label="Skip link to GET v1/account/{accountNumber}/user-terminals" class="heading-anchor-icon fa fa-regular fa-anchor" href="#get-v1accountaccountnumberuser-terminals"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">GET v2/user-terminals</code> (<a target="_self" href="/reference/get_public-v2-user-terminals">Get all user terminals</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">limit</code> query parameter removed. Page size is 100</li>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">active</code> query parameter removed, this caused confusion due to how Starlink returned historical records of UTs that were no longer on the account when active was false. Can still filter by user terminals that are on/not on service lines using the <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">hasServiceLine</code> query parameter.</li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberuser-terminalsdeviceid"></div><div class="heading-text">POST v1/account/{accountNumber}/user-terminals/{deviceId}</div><a aria-label="Skip link to POST v1/account/{accountNumber}/user-terminals/{deviceId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberuser-terminalsdeviceid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/user-terminals</code> (<a target="_self" href="/reference/post_public-v2-user-terminals">Add user terminal to account</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">deviceId</code> query parameter moved to body parameter <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">deviceId</code></li>
+</ul>
+</li>
+</ul>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="delete-v1accountaccountnumberuser-terminalsdeviceid"></div><div class="heading-text">DELETE v1/account/{accountNumber}/user-terminals/{deviceId}</div><a aria-label="Skip link to DELETE v1/account/{accountNumber}/user-terminals/{deviceId}" class="heading-anchor-icon fa fa-regular fa-anchor" href="#delete-v1accountaccountnumberuser-terminalsdeviceid"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">DELETE v2/user-terminals/{deviceId}</code> (<a target="_self" href="/reference/delete_public-v2-user-terminals-deviceid">Remove user terminal from account</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberuser-terminalsdeviceidreboot"></div><div class="heading-text">POST v1/account/{accountNumber}/user-terminals/{deviceId}/reboot</div><a aria-label="Skip link to POST v1/account/{accountNumber}/user-terminals/{deviceId}/reboot" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberuser-terminalsdeviceidreboot"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/user-terminals/{deviceId}/reboot</code> (<a target="_self" href="/reference/post_public-v2-user-terminals-deviceid-reboot">Reboot user terminal</a>)</p>
+<br/>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="post-v1accountaccountnumberuser-terminalsbatch-config"></div><div class="heading-text">POST v1/account/{accountNumber}/user-terminals/batch-config</div><a aria-label="Skip link to POST v1/account/{accountNumber}/user-terminals/batch-config" class="heading-anchor-icon fa fa-regular fa-anchor" href="#post-v1accountaccountnumberuser-terminalsbatch-config"></a></h3>
+<p>V2 closest version: <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">POST v2/user-terminals/configs/assign</code> (<a target="_self" href="/reference/put_public-v2-user-terminals-configs-assign">User terminal config assignment</a>)</p>
+<p>Differences:</p>
+<ul>
+<li>Request:<!-- -->
+<ul>
+<li><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">deviceId</code> body parameter renamed to <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">userTerminalIds</code> to make clear this field needs to be specifically userTerminalIds, making all uses of <button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">deviceId</code> in V2 refer to fields that can be a userTerminalId, kit #, or serial number</li>
+</ul>
+</li>
+<li>Notes: user terminal configIds are not queryable via the API today, configIds must be found on the Starlink website.</li>
+</ul>
+<br/></div><div align="center" class="Flex Flex_row " justify="between" style="--flex-gap:var(--md)"><div class="UpdatedAt"><p class="DateLine "><i class="icon icon-watch"></i>Updated<!-- --> <!-- -->about 2 months ago<!-- --> </p></div></div><hr class="NextStepsDivider"/><nav aria-label="Pagination Controls" class="PaginationControlsjDYuqu8pBMUy rm-Pagination"><a class="PaginationControls-link254uPEbaP92i PaginationControls-link_left1G58BmNHDbVm" aria-label="Previous Page: API V2 Service Accounts" href="/docs/api-v2-service-accounts"><span class="PaginationControls-iconZbaZ3tgyhNmI icon-arrow-left2"></span><div class="PaginationControls-text3qEXHZU00znD PaginationControls-text_left3wBkn4C9R0W_">API V2 Service Accounts</div></a><a class="PaginationControls-link254uPEbaP92i PaginationControls-link_right5lsfuICZqXYk" aria-label="Next Page: Authentication" href="/docs/authentication"><div class="PaginationControls-text3qEXHZU00znD PaginationControls-text_right3EIfWubgRVVP">Authentication</div><span class="PaginationControls-iconZbaZ3tgyhNmI icon-arrow-right2"></span></a></nav></section><section class="content-toc grid-25 "><nav aria-label="Table of contents" role="navigation"><ul class="toc-list"><li><a class="tocHeader" href="#"><i class="icon icon-text-align-left"></i>Table of Contents</a></li><li class="toc-children"><ul>
+<li>
+<a href="#timeline">Timeline</a>
+</li>
+<li>
+<a href="#auth">Auth</a>
+</li>
+<li>
+<ul>
+<li><a href="#service-accounts">Service accounts</a></li>
+</ul>
+</li>
+<li>
+<a href="#endpoint-migration-guide">Endpoint Migration Guide</a>
+</li>
+<li>
+<ul>
+<li><a href="#get-v1accounts">GET v1/accounts</a></li>
+<li><a href="#post-v1accountsaccountnumberbilling-cyclesquery">POST v1/accounts/{accountNumber}/billing-cycles/query</a></li>
+<li><a href="#get-v1accountaccountnumberservice-linesavailable-products">GET v1/account/{accountNumber}/service-lines/available-products</a></li>
+<li><a href="#get-v1accountaccountnumberaddresses">GET v1/account/{accountNumber}/addresses</a></li>
+<li><a href="#get-v1accountaccountnumberaddressesaddressreferenceid">GET v1/account/{accountNumber}/addresses/{addressReferenceId}</a></li>
+<li><a href="#post-v1accountaccountnumberaddressesaddressreferenceid">POST v1/account/{accountNumber}/addresses/{addressReferenceId}</a></li>
+<li><a href="#put-v1accountaccountnumberaddresses">PUT v1/account/{accountNumber}/addresses</a></li>
+<li><a href="#post-v1accountaccountnumberaddressescheck-capacity">POST v1/account/{accountNumber}/addresses/check-capacity</a></li>
+<li><a href="#get-v1accountaccountnumberroutersrouterid">GET v1/account/{accountNumber}/routers/{routerId}</a></li>
+<li><a href="#get-v1accountaccountnumberroutersconfigs">GET v1/account/{accountNumber}/routers/configs</a></li>
+<li><a href="#get-v1accountaccountnumberroutersconfigsconfigid">GET v1/account/{accountNumber}/routers/configs/{configId}</a></li>
+<li><a href="#post-v1accountaccountnumberroutersconfigs">POST v1/account/{accountNumber}/routers/configs</a></li>
+<li><a href="#put-v1accountaccountnumberroutersconfigsconfigid">PUT v1/account/{accountNumber}/routers/configs/{configId}</a></li>
+<li><a href="#put-v1accountaccountnumberroutersbatch-config">PUT v1/account/{accountNumber}/routers/batch-config</a></li>
+<li><a href="#put-v1accountaccountnumberroutersrouteridconfig">PUT v1/account/{accountNumber}/routers/{routerId}/config</a></li>
+<li><a href="#delete-v1accountaccountnumberroutersrouteridconfig">DELETE v1/account/{accountNumber}/routers/{routerId}/config</a></li>
+<li><a href="#put-v1accountaccountnumberupdate-default-router-config">PUT v1/account/{accountNumber}/update-default-router-config</a></li>
+<li><a href="#get-v1accountaccountnumberrouter-local-content">GET v1/account/{accountNumber}/router-local-content</a></li>
+<li><a href="#post-v1accountaccountnumberrouter-local-content">POST v1/account/{accountNumber}/router-local-content</a></li>
+<li><a href="#get-v1accountaccountnumberrouterssandboxclients">GET v1/account/{accountNumber}/routers/sandbox/clients</a></li>
+<li><a href="#post-v1accountaccountnumberrouterssandboxclients">POST v1/account/{accountNumber}/routers/sandbox/clients</a></li>
+<li><a href="#post-v1accountaccountnumberrouterssandboxsandboxid">POST v1/account/{accountNumber}/routers/sandbox/{sandboxId}</a></li>
+<li><a href="#put-v1accountaccountnumberrouterssandboxheartbeat">PUT v1/account/{accountNumber}/routers/sandbox/heartbeat</a></li>
+<li><a href="#post-v1accountaccountnumberroutersrouteridreboot">POST v1/account/{accountNumber}/routers/{routerId}/reboot</a></li>
+<li><a href="#put-v1accountaccountnumberupdate-default-router-tls-domain">PUT v1/account/{accountNumber}/update-default-router-tls-domain</a></li>
+<li><a href="#get-v1accountaccountnumberrouterstls-config">GET v1/account/{accountNumber}/routers/tls-config</a></li>
+<li><a href="#post-v1accountaccountnumberrouterstls-config">POST v1/account/{accountNumber}/routers/tls-config</a></li>
+<li><a href="#delete-v1accountaccountnumberrouterstls-config">DELETE v1/account/{accountNumber}/routers/tls-config</a></li>
+<li><a href="#get-v1accountaccountnumberservice-lines">GET v1/account/{accountNumber}/service-lines</a></li>
+<li><a href="#get-v1accountaccountnumberservice-linesservicelinenumber">GET v1/account/{accountNumber}/service-lines/{serviceLineNumber}</a></li>
+<li><a href="#post-v1accountaccountnumberservice-lines">POST v1/account/{accountNumber}/service-lines</a></li>
+<li><a href="#delete-v1accountaccountnumberservice-linesservicelinenumber">DELETE v1/account/{accountNumber}/service-lines/{serviceLineNumber}</a></li>
+<li><a href="#put-v1accountaccountnumberservice-linesservicelinenumbernickname">PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/nickname</a></li>
+<li><a href="#put-v1accountaccountnumberservice-linesservicelinenumberproductproductreferenceid">PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/product/{productReferenceId}</a></li>
+<li><a href="#post-v1accountaccountnumberservice-linesservicelinenumberproductproductreferenceid">POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/product/{productReferenceId}</a></li>
+<li><a href="#put-v1accountaccountnumberservice-linesservicelinenumberrecurring-data">PUT v1/account/{accountNumber}/service-lines/{serviceLineNumber}/recurring-data</a></li>
+<li><a href="#post-v1accountaccountnumberservice-linesservicelinenumbertop-up-data">POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/top-up-data</a></li>
+<li><a href="#post-v1accountaccountnumberservice-linesservicelinenumberopt-in">POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/opt-in</a></li>
+<li><a href="#delete-v1accountaccountnumberservice-linesservicelinenumberopt-out">DELETE v1/account/{accountNumber}/service-lines/{serviceLineNumber}/opt-out</a></li>
+<li><a href="#get-v1accountaccountnumberservice-linesservicelinenumberbilling-cyclepartial-periods">GET v1/account/{accountNumber}/service-lines/{serviceLineNumber}/billing-cycle/partial-periods</a></li>
+<li><a href="#post-v1accountaccountnumberuser-terminalsuserterminalidservicelinenumber">POST v1/account/{accountNumber}/user-terminals/{userTerminalId}/{serviceLineNumber}</a></li>
+<li><a href="#delete-v1accountaccountnumberuser-terminalsuserterminalidservicelinenumber">DELETE v1/account/{accountNumber}/user-terminals/{userTerminalId}/{serviceLineNumber}</a></li>
+<li><a href="#post-v1accountaccountnumberservice-linesservicelinenumberpublic-ip">POST v1/account/{accountNumber}/service-lines/{serviceLineNumber}/public-ip</a></li>
+<li><a href="#get-v1accountaccountnumberuser-terminals">GET v1/account/{accountNumber}/user-terminals</a></li>
+<li><a href="#post-v1accountaccountnumberuser-terminalsdeviceid">POST v1/account/{accountNumber}/user-terminals/{deviceId}</a></li>
+<li><a href="#delete-v1accountaccountnumberuser-terminalsdeviceid">DELETE v1/account/{accountNumber}/user-terminals/{deviceId}</a></li>
+<li><a href="#post-v1accountaccountnumberuser-terminalsdeviceidreboot">POST v1/account/{accountNumber}/user-terminals/{deviceId}/reboot</a></li>
+<li><a href="#post-v1accountaccountnumberuser-terminalsbatch-config">POST v1/account/{accountNumber}/user-terminals/batch-config</a></li>
+</ul>
+</li>
+</ul></li></ul></nav></section></div></article>

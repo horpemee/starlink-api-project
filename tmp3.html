@@ -1,0 +1,125 @@
+<article class="SuperHubDoc-article3ArTrEavUTKg rm-Article rm-Guides-SuperHub"><header id="content-head"><div class="row clearfix"><div class="col-xs-9"><h1>Authentication</h1></div></div></header><div class="grid-container-fluid" id="content-container"><section class="content-body grid-75 "><div style="margin-left:31px" class="rm-Markdown markdown-body rm-Markdown markdown-body ng-non-bindable" data-testid="RDMD"><style>/*! tailwindcss v4.1.17 | MIT License | https://tailwindcss.com */
+@layer theme, base, components, utilities;
+@layer utilities;
+</style><style data-tailwind-stylesheet="true"></style><p>To set up API access, log into your <a target="_self" href="https://www.starlink.com/account/settings">Starlink account settings page</a>. In the section named &quot;API V2 Service Accounts&quot; select the &quot;Add V2 Service Account&quot; in the top right corner to create a new service account.</p>
+<p>Once a V2 service account is created and you have both a clientId and secret you are ready to use those credentials to make API requests. Starlink API uses <a target="_self" href="https://openid.net/connect/">OIDC</a>  for authentication and <a target="_self" href="https://swagger.io/docs/specification/authentication/bearer-authentication/">bearer tokens</a> are used to authorize requests. The OpenID configuration for the Starlink API is located at <a target="_self" href="https://starlink.com/api/auth/.well-known/openid-configuration">https://starlink.com/api/auth/.well-known/openid-configuration</a>.</p>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="multiple-starlink-accounts"></div><div class="heading-text">Multiple Starlink Accounts</div><a aria-label="Skip link to Multiple Starlink Accounts" class="heading-anchor-icon fa fa-regular fa-anchor" href="#multiple-starlink-accounts"></a></h3>
+<p>Starlink V2 service accounts are linked to an individual Starlink account. If you want to make API requests to multiple different accounts you will need to create V2 service accounts for each one and attach the correct bearer token to each request so that it is requesting for the correct account. An example of this can be found in the provided demo.</p>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="expiry"></div><div class="heading-text">Expiry</div><a aria-label="Skip link to Expiry" class="heading-anchor-icon fa fa-regular fa-anchor" href="#expiry"></a></h3>
+<p>The token should be reused for subsequent requests until a 401 Unauthorized response indicates that the token has expired or is invalid. Upon receiving this response, the token should be immediately removed from the cache and a new token should be obtained for further requests.</p>
+<p><strong>Security Note:</strong> Always handle your Client Secret and Bearer Tokens with discretion. Think of it like a password. Store it in a safe location, encrypted, and not committed to your general codebase. You can add a new service account or a separate secret for each user up to 20 service accounts and 20 secrets per service account. Secrets can be deleted by any user with <strong>Service account management</strong> permission (admin or has that role).</p>
+<h3 class="heading heading-3 header-scroll"><div class="heading-anchor anchor waypoint" id="rotating-secrets"></div><div class="heading-text">Rotating secrets</div><a aria-label="Skip link to Rotating secrets" class="heading-anchor-icon fa fa-regular fa-anchor" href="#rotating-secrets"></a></h3>
+<p>Starlink V2 service accounts can be assigned up to 20 secrets. Secrets also can be configured with an optional expiry. These mechanisms can be used to smoothly rotate secrets by periodically creating new ones, then deleting the old secrets.</p>
+<p><strong>Multi-Factor Authentication</strong>: Service accounts calling any endpoints will not have to complete any multi-factor authentication process.</p>
+<h2 class="heading heading-2 header-scroll"><div class="heading-anchor anchor waypoint" id="example"></div><div class="heading-text">Example</div><a aria-label="Skip link to Example" class="heading-anchor-icon fa fa-regular fa-anchor" href="#example"></a></h2>
+<div class="CodeTabs CodeTabs_initial theme-dark"><div class="CodeTabs-toolbar"><button type="button" value="python">Python</button></div><div class="CodeTabs-inner"><pre><button aria-label="Copy Code" class="rdmd-code-copy fa"></button><code class="rdmd-code lang- theme-dark" data-lang="">import requests
+import json
+
+def get_token(account):
+    try:
+        # Use cached token if present.
+        if credentials[account][&#x27;token&#x27;] is not None:
+            return credentials[account][&#x27;token&#x27;]
+
+        response = requests.post(
+            &#x27;https://starlink.com/api/auth/connect/token&#x27;,
+            headers={&#x27;Content-type&#x27;: &#x27;application/x-www-form-urlencoded&#x27;},
+            data={
+                &#x27;client_id&#x27;: credentials[account][&#x27;clientId&#x27;],
+                &#x27;client_secret&#x27;: credentials[account][&#x27;secret&#x27;],
+                &#x27;grant_type&#x27;: &#x27;client_credentials&#x27;,
+            }
+        )
+        # Raise an exception for bad responses
+        response.raise_for_status()
+
+        # Process the response if successful
+        response_data = response.json()
+        access_token = response_data.get(&#x27;access_token&#x27;)
+
+        if not access_token:
+            raise ValueError(&quot;Access token not received in the response.&quot;)
+
+        # Update the token cache
+        credentials[account][&#x27;token&#x27;] = access_token
+        return access_token
+
+    except requests.RequestException as e:
+        # Log the error along with the response body
+        error_message = f&quot;Failed to fetch access token for account &#x27;{account}&#x27;, likely bad credentials. Response text: &#x27;{response.text}&#x27;&quot;
+        print(error_message)
+        raise Exception(error_message) from e
+
+    except ValueError as e:
+        error_message = f&quot;Error processing the response: {str(e)}, Response body: {response.text}&quot;
+        print(error_message)
+        raise Exception(error_message) from e
+
+    except KeyError as e:
+        error_message = f&quot;No credentials found for account &#x27;{account}&#x27;&quot;
+        print(error_message)
+        raise Exception(error_message) from e
+
+def get_header(account):
+    return {
+        &quot;Accept&quot;: &quot;application/json&quot;,
+        &quot;Authorization&quot;: f&#x27;Bearer {get_token(account)}&#x27;
+    }
+
+def make_authorized_request(account, url, method, **kwargs):
+    kwargs[&#x27;headers&#x27;] = get_header(account)
+    response = requests.request(method, url, **kwargs)
+
+    if response.status_code == 401:
+        clear_token(account)
+        kwargs[&#x27;headers&#x27;] = get_header(account)
+        response = requests.request(method, url, **kwargs)
+
+    return response
+
+credentials = {}
+def add_credentials(account, clientId, secret):
+    if account == &#x27;&#x27;: raise ValueError(&quot;Failed to add credentials: account cannot be &#x27;&#x27;&quot;)
+    credentials[account] = {&#x27;clientId&#x27;: clientId, &#x27;secret&#x27;: secret, &#x27;token&#x27;: None}
+
+def clear_token(account):
+    credentials[account][&#x27;token&#x27;] = None
+
+# Swagger endpoint documentation available at https://starlink.com/api/public/swagger/index.html?urls.primaryName=V2
+if __name__ == &#x27;__main__&#x27;:
+    account1 = &#x27;ACC-111&#x27; # Placeholder
+    account2 = &#x27;ACC-222&#x27; # Placeholder
+
+    add_credentials(account1, &#x27;TODO CLIENT 1&#x27;, &#x27;TODO SECRET 1&#x27;)
+    add_credentials(account2, &#x27;TODO CLIENT 2&#x27;, &#x27;TODO SECRET 2&#x27;)
+
+    # Example call to get basic information on an account.
+    account1_response = make_authorized_request(account1, &#x27;https://starlink.com/api/public/v2/account&#x27;, &#x27;GET&#x27;)
+    print(account1_response.json())
+
+    # Example call using a different account.
+    account2_response = make_authorized_request(account2, &#x27;https://starlink.com/api/public/v2/account&#x27;, &#x27;GET&#x27;)
+    print(account2_response.json())
+
+
+    # Example POST Request to get data usage.
+    page = 0
+    request_json = {
+        &quot;serviceLineNumbers&quot;: [],
+        &quot;previousBillingCycles&quot;: 1,
+        &quot;activeServiceLinesOnly&quot;: True
+    }
+    response = make_authorized_request(account1, f&#x27;https://starlink.com/api/public/v2/data-usage/query&#x27;, &#x27;POST&#x27;, json=request_json)
+    print(json.dumps(response.json(), indent=4))
+</code></pre></div></div></div><div align="center" class="Flex Flex_row " justify="between" style="--flex-gap:var(--md)"><div class="UpdatedAt"><p class="DateLine "><i class="icon icon-watch"></i>Updated<!-- --> <!-- -->24 days ago<!-- --> </p></div></div><hr class="NextStepsDivider"/><div class="WhatsNext-wrapper3DTnpcPqKoHg"><header align="center" class="Flex Flex_row APISectionHeader3LN_-QIR0m7x APISectionHeader_title2JS7xZ_m-HAv rm-APISectionHeader WhatsNext-headingQHN33r4trf_s" justify="between" style="--flex-gap:4px;flex-wrap:wrap"><div class="APISectionHeader-heading4MUMLbp4_nLs APISectionHeader-heading_title15Zd6rYplxPq">What’s Next</div></header><div class="rm-Markdown markdown-body WhatsNext-description1zZyZLPCGmaa" data-testid="RDMD"><p>Learn about rate limits</p></div><ul><li><a class="WhatsNext-link" target="_self" href="/docs/rate-limits-1">Rate Limits</a><span class="IconWrapper Icon-wrapper2z2wVIeGsiUy"><svg fill="none" viewBox="0 0 24 24" class="Icon Icon3_D2ysxFZ_ll Icon-svg2Lm7f6G9Ly5a icon" data-name="arrow-right" role="img" style="--icon-color:inherit;--icon-size:inherit;--icon-stroke-width:2px" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" class="icon-stroke-width"></path></svg></span></li></ul></div></section><section class="content-toc grid-25 "><nav aria-label="Table of contents" role="navigation"><ul class="toc-list"><li><a class="tocHeader" href="#"><i class="icon icon-text-align-left"></i>Table of Contents</a></li><li class="toc-children"><ul>
+<li>
+<ul>
+<li><a href="#multiple-starlink-accounts">Multiple Starlink Accounts</a></li>
+<li><a href="#expiry">Expiry</a></li>
+<li><a href="#rotating-secrets">Rotating secrets</a></li>
+</ul>
+</li>
+<li>
+<a href="#example">Example</a>
+</li>
+</ul></li></ul></nav></section></div></article>
