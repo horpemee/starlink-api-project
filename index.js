@@ -48,6 +48,7 @@ const upload = multer({ dest: "uploads/" });
 // YOUR Starlink Credentials - STORE THESE SAFELY
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
+ 
 
 const mapkey = process.env.GOOGLE_MAP_KEY;
 // Optional override for Starlink v2 API base; falls back to v1 base if not set
@@ -57,6 +58,7 @@ const STARLINK_BASE_URL_V2 =
 const V2_DEFAULT_CLIENT_ID = process.env.V2_CLIENT_ID;
 const V2_DEFAULT_CLIENT_SECRET = process.env.V2_CLIENT_SECRET;
 const V2_CREDENTIALS_JSON = process.env.STARLINK_V2_CREDENTIALS || "{}";
+ 
 
 const MockAPI = require("./mocks/mock");
 
@@ -1496,11 +1498,13 @@ const API_V2 =
           makeAuthedGetV2(acct, `/v2/user-terminals${params}`),
         addUserTerminal: (acct, deviceId) =>
           makeAuthedPostV2(acct, `/v2/user-terminals`, { deviceId }),
-        attachTerminal: (acct, terminalId, serviceLineNumber) =>
+        attachTerminal: (acct, deviceId, serviceLineNumber) =>
+        // attachTerminal: (acct, kitNumber, serviceLineNumber) =>
           makeAuthedPostV2(
             acct,
             `/v2/service-lines/${serviceLineNumber}/user-terminals`,
-            { deviceId: terminalId }
+            // { deviceId: kitNumber }
+            { deviceId}
           ),
 
         removeDeviceFromAccount: (acct, deviceId) => {
@@ -1599,91 +1603,251 @@ async function activateStarlink({
   };
 }
 
+// async function activateStarlinkV2({
+//   accountNumber,
+//   address,
+//   kitNumber,
+//   nickname,
+// }) {
+//   console.log("[activateStarlinkV2] called with :::");
+//   if (!accountNumber || !address || !kitNumber || !nickname)
+//     throw new Error(
+//       "accountNumber, address, productCode and userTerminalId are required"
+//     );
+
+//   // 1. Create address
+//   const addressRes = await API_V2.createAddress(accountNumber, address);
+//   const addressNumber =
+//     addressRes.content?.addressReferenceId ||
+//     addressRes.content?.addressNumber ||
+//     addressRes.addressReferenceId;
+//   if (!addressNumber)
+//     throw new Error("Address creation failed - missing addressReferenceId");
+
+//   // 2. Validate product code
+//   const products = await API_V2.getAvailableProducts(accountNumber);
+//   const prods = products.content?.results || products.results || [];
+//   if (prods.length === 0)
+//     throw new Error("No product available for the supplied account number");
+
+//   // 3. Create service line
+//   const serviceLineRes = await API_V2.createServiceLine(accountNumber, {
+//     addressReferenceId: addressNumber,
+//     productReferenceId: prods[0].productReferenceId,
+//   });
+//   const serviceLineNumber =
+//     serviceLineRes.content?.serviceLineNumber ||
+//     serviceLineRes.serviceLineNumber;
+//   if (!serviceLineNumber)
+//     throw new Error("Service line creation failed - missing serviceLineNumber");
+
+//   //3.x Add nickname to service line
+//   const nicknameRes = await API_V2.updateServiceLineNickname(
+//     accountNumber,
+//     serviceLineNumber,
+//     { nickname }
+//   );
+
+//   if (nicknameRes.errors && nicknameRes.errors.length > 0) {
+//     throw Error(nicknameRes.errors[0].errorMessage);
+//   }
+
+//   const userTerminalRes = await API_V2.addUserTerminal(accountNumber, kitNumber);
+
+//   if (userTerminalRes.errors && userTerminalRes.errors.length > 0) {
+//     throw Error(userTerminalRes.errors[0].errorMessage);
+//   }
+
+//   const allTerminals = await API_V2.listUserTerminals(
+//     accountNumber,
+//     `?searchString=${kitNumber}`
+//   );
+
+//   if (allTerminals.errors && allTerminals.errors.length > 0) {
+//     throw Error(allTerminals.errors[0].errorMessage);
+//   }
+
+//   const myTerminal = (allTerminals.content?.results || []).filter(
+//     (x) => x.kitSerialNumber === kitNumber || x.serialNumber === kitNumber
+//   );
+
+//   if (myTerminal.length <= 0) {
+//     throw Error("Terminal has not been added to account");
+//   }
+//   // const userTerminalId = myTerminal[0].userTerminalId;
+
+//   // 5. Attach terminal to service line
+//   const attachRes = await API_V2.attachTerminal(
+//     accountNumber,
+//     kitNumber,
+//     // userTerminalId,
+//     serviceLineNumber
+//   );
+
+//   return {
+//     address: addressRes,
+//     serviceLine: serviceLineRes,
+//     userTerminal: userTerminalRes,
+//     attach: attachRes,
+//   };
+// }
+
 async function activateStarlinkV2({
   accountNumber,
   address,
   kitNumber,
   nickname,
 }) {
-  console.log("[activateStarlinkV2] called with :::");
-  if (!accountNumber || !address || !kitNumber || !nickname)
-    throw new Error(
-      "accountNumber, address, productCode and userTerminalId are required"
-    );
+  console.log("[activateStarlinkV2] Starting activation:", { accountNumber, kitNumber, nickname });
 
-  // 1. Create address
+  if (!accountNumber || !address || !kitNumber || !nickname) {
+    throw new Error("accountNumber, address, kitNumber and nickname are required");
+  }
+
+  // ─── Helper: Wait for terminal to become visible after add ──────────────────
+  async function waitForTerminalVisible(maxAttempts = 12, delayMs = 5000) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`Checking if terminal ${kitNumber} is visible (attempt ${attempt}/${maxAttempts})`);
+
+      const terminalsRes = await API_V2.listUserTerminals(
+        accountNumber,
+        `?searchString=${kitNumber}`
+      );
+
+      if (terminalsRes.errors && terminalsRes.errors.length > 0) {
+        throw new Error(terminalsRes.errors[0].errorMessage || "Failed to list terminals");
+      }
+
+      const terminals = terminalsRes.content?.results || [];
+      const found = terminals.find(
+        (t) => t.kitSerialNumber === kitNumber || t.serialNumber === kitNumber
+      );
+
+      if (found) {
+        console.log(`Terminal ${kitNumber} now visible after ${attempt} attempts`);
+        return found;
+      }
+
+      if (attempt === maxAttempts) {
+        throw new Error(
+          `HTTP error! status. Device ${kitNumber} already assigned.`
+        );
+      }
+
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  // 1. Add terminal (if not already present)
+  //start
+  // console.log(`Adding terminal ${kitNumber} to account...`);
+  // const addRes = await API_V2.addUserTerminal(accountNumber, kitNumber);
+
+  // if (addRes.errors && addRes.errors.length > 0) {
+  //   throw new Error(addRes.errors[0].errorMessage || "Failed to add terminal");
+  // }
+
+  // // 2. Wait until it's visible
+  // const terminal = await waitForTerminalVisible();
+
+  // // Optional: Early exit if already active (prevents duplicate activations)
+  // if (terminal.status?.toLowerCase() === "active") {
+  //   throw new Error(`Terminal ${kitNumber} is already active/attached. Activation skipped.`);
+  // }
+//end
+
+console.log(`Checking if terminal ${kitNumber} already exists...`);
+  const initialTerminalsRes = await API_V2.listUserTerminals(
+    accountNumber,
+    `?searchString=${kitNumber}`
+  );
+
+  if (initialTerminalsRes.errors && initialTerminalsRes.errors.length > 0) {
+    throw new Error(initialTerminalsRes.errors[0].errorMessage || "Failed to list terminals");
+  }
+
+  const initialTerminals = initialTerminalsRes.content?.results || [];
+  const existingTerminal = initialTerminals.find(
+    (t) => t.kitSerialNumber === kitNumber || t.serialNumber === kitNumber
+  );
+
+  let terminal;
+  if (existingTerminal) {
+    // Check if already assigned/activated (adjust fields based on actual API response; serviceLineNumber is likely the key indicator)
+    if (
+      existingTerminal.serviceLineNumber ||  // Primary check: if attached to a service line
+      existingTerminal.serviceLineReferenceId ||  // Alternative if API uses this field
+      existingTerminal.status?.toLowerCase() === "active" ||
+      existingTerminal.status?.toLowerCase() === "online" ||  // Common values from Starlink dish/telemetry APIs
+      existingTerminal.status?.toLowerCase() === "connected"
+    ) {
+      throw new Error("The kit has already been assigned");
+    }
+    // If exists but not assigned, use it without adding
+    console.log(`Terminal ${kitNumber} exists but not assigned, proceeding...`);
+    terminal = existingTerminal;
+  } else {
+    // If not found, add it
+    console.log(`Adding terminal ${kitNumber} to account...`);
+    const addRes = await API_V2.addUserTerminal(accountNumber, kitNumber);
+
+    if (addRes.errors && addRes.errors.length > 0) {
+      throw new Error(addRes.errors[0].errorMessage || "Failed to add terminal");
+    }
+
+    // Wait until it's visible
+    terminal = await waitForTerminalVisible();
+  }
+
+  // 3. Create address
   const addressRes = await API_V2.createAddress(accountNumber, address);
-  const addressNumber =
-    addressRes.content?.addressReferenceId ||
-    addressRes.content?.addressNumber ||
-    addressRes.addressReferenceId;
-  if (!addressNumber)
-    throw new Error("Address creation failed - missing addressReferenceId");
+  const addressNumber = addressRes.content?.addressReferenceId ||
+                       addressRes.addressReferenceId;
+  if (!addressNumber) throw new Error("Missing addressReferenceId");
 
-  // 2. Validate product code
+  // 4. Get products & create service line
   const products = await API_V2.getAvailableProducts(accountNumber);
   const prods = products.content?.results || products.results || [];
-  if (prods.length === 0)
-    throw new Error("No product available for the supplied account number");
+  if (prods.length === 0) throw new Error("No products available");
 
-  // 3. Create service line
   const serviceLineRes = await API_V2.createServiceLine(accountNumber, {
     addressReferenceId: addressNumber,
     productReferenceId: prods[0].productReferenceId,
   });
-  const serviceLineNumber =
-    serviceLineRes.content?.serviceLineNumber ||
-    serviceLineRes.serviceLineNumber;
-  if (!serviceLineNumber)
-    throw new Error("Service line creation failed - missing serviceLineNumber");
 
-  //3.x Add nickname to service line
+  const serviceLineNumber = serviceLineRes.content?.serviceLineNumber ||
+                           serviceLineRes.serviceLineNumber;
+  if (!serviceLineNumber) throw new Error("Missing serviceLineNumber");
+
+  // 5. Set nickname
   const nicknameRes = await API_V2.updateServiceLineNickname(
     accountNumber,
     serviceLineNumber,
     { nickname }
   );
-
-  if (nicknameRes.errors && nicknameRes.errors.length > 0) {
-    throw Error(nicknameRes.errors[0].errorMessage);
+  if (nicknameRes.errors?.length > 0) {
+    throw new Error(nicknameRes.errors[0].errorMessage);
   }
 
-  const userTerminalRes = await API_V2.addUserTerminal(accountNumber, kitNumber);
-
-  if (userTerminalRes.errors && userTerminalRes.errors.length > 0) {
-    throw Error(userTerminalRes.errors[0].errorMessage);
-  }
-
-  const allTerminals = await API_V2.listUserTerminals(
-    accountNumber,
-    `?searchString=${kitNumber}`
-  );
-
-  if (allTerminals.errors && allTerminals.errors.length > 0) {
-    throw Error(allTerminals.errors[0].errorMessage);
-  }
-
-  const myTerminal = (allTerminals.content?.results || []).filter(
-    (x) => x.kitSerialNumber === kitNumber || x.serialNumber === kitNumber
-  );
-
-  if (myTerminal.length <= 0) {
-    throw Error("Terminal has not been added to account");
-  }
-  const userTerminalId = myTerminal[0].userTerminalId;
-
-  // 5. Attach terminal to service line
+  // 6. Attach using kitNumber (this is correct for v2!)
+  console.log(`Attaching terminal ${kitNumber} to service line ${serviceLineNumber}`);
   const attachRes = await API_V2.attachTerminal(
     accountNumber,
-    userTerminalId,
+    kitNumber,              // ← correct: use kitNumber here
     serviceLineNumber
   );
 
+  if (attachRes.errors?.length > 0) {
+    throw new Error(attachRes.errors[0].errorMessage || "Attach failed");
+  }
+
   return {
+    success: true,
     address: addressRes,
     serviceLine: serviceLineRes,
-    userTerminal: userTerminalRes,
     attach: attachRes,
+    terminal: terminal,
+    message: `Activated ${kitNumber} on service line ${serviceLineNumber}`
   };
 }
 
