@@ -26,9 +26,9 @@ const mailjet = new Mailjet({
   apiSecret: process.env.MJ_APIKEY_PRIVATE,
 });
 
-// const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://unconnected.support";
+// const FRONTEND_URL = process.env.FRONTEND_URL || "https://unconnected.support";
 
 app.use(
   cors({
@@ -71,11 +71,11 @@ const swaggerSpec = swaggerJsdoc({
       description:
         "Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.",
     },
-    // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
-    servers: [
-      { url: "http://localhost:3000" },
-      { url: "https://api.unconnected.support/" },
-    ],
+    servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+    // servers: [
+    //   { url: "http://localhost:3000" },
+    //   { url: "https://api.unconnected.support/" },
+    // ],
   },
   // Scan this file for JSDoc @swagger blocks
   apis: [path.join(__dirname, "index.js")],
@@ -1876,10 +1876,10 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-8653096-80387-28",
       "ACC-2963072-59271-18",
       "ACC-2866843-91611-20",
-      "ACC-7393314-12390-10",
+      // "ACC-7393314-12390-10",
       "ACC-DF-9022857-69501-2",
       "ACC-DF-9012430-88305-91",
-      "ACC-4635460-74859-26",
+      // "ACC-4635460-74859-26",
       "ACC-DF-8914998-17079-20",
     ];
     // Filter out unwanted accounts
@@ -2075,31 +2075,7 @@ app.post("/api/v2/accounts/:account/addresses", async (req, res) => {
 
 // (b) get available products (already existed but keeping consistent path)
 
-/**
- * @swagger
- * /api/accounts/{account}/products:
- *   get:
- *     summary: List available products for an account
- *     tags: [Products]
- *     parameters:
- *       - in: path
- *         name: account
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: List of products }
- */
-app.get("/api/accounts/:account/products", async (req, res) => {
-  try {
-    const data = await API.getAvailableProducts(req.params.account);
-    res.json(data);
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res
-      .status(err.response?.status || 500)
-      .json({ error: err.response?.data || err.message });
-  }
-});
+ 
 
 /**
  * @swagger
@@ -2231,37 +2207,7 @@ app.get("/api/v2/accounts/:account/servicelines", async (req, res) => {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ServiceLineResponse' }
  */
-app.post("/api/accounts/:account/service-lines", async (req, res) => {
-  try {
-    const data = await API.createServiceLine(req.params.account, req.body);
-    res.json(data);
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res
-      .status(err.response?.status || 500)
-      .json({ error: err.response?.data || err.message });
-  }
-});
-
-app.patch(
-  "/api/accounts/:account/service-lines/:serviceid",
-  async (req, res) => {
-    try {
-      const data = await API.updateServiceLineNickname(
-        req.params.account,
-        req.params.serviceid,
-        req.body
-      );
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res
-        .status(err.response?.status || 500)
-        .json({ error: err.response?.data || err.message });
-    }
-  }
-);
-
+ 
 /**
  * @swagger
  * /api/v2/accounts/{account}/user-terminals/{deviceId}:
@@ -2415,115 +2361,14 @@ app.patch(
 );
 
 // (d) list user terminals
-/**
- * @swagger
- * /api/accounts/{account}/user-terminals:
- *   get:
- *     summary: List user terminals
- *     tags: [UserTerminals]
- *     parameters:
- *       - in: path
- *         name: account
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200:
- *         description: Array of terminals
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items: { $ref: '#/components/schemas/UserTerminal' }
- */
-app.get("/api/accounts/:account/user-terminals", async (req, res) => {
-  try {
-    const data = await API.listUserTerminals(req.params.account);
-    res.json(data);
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res
-      .status(err.response?.status || 500)
-      .json({ error: err.response?.data || err.message });
-  }
-});
+
 
 // (e) attach terminal to service line
-/**
- * @swagger
- * /api/accounts/{account}/user-terminals/{terminalId}/{serviceLineNumber}:
- *   post:
- *     summary: Attach a user terminal to a service line
- *     tags: [UserTerminals]
- *     parameters:
- *       - in: path
- *         name: account
- *         required: true
- *         schema: { type: string }
- *       - in: path
- *         name: terminalId
- *         required: true
- *         schema: { type: string }
- *       - in: path
- *         name: serviceLineNumber
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: Terminal attached }
- */
-app.post(
-  "/api/accounts/:account/user-terminals/:terminalId/:serviceLineNumber",
-  async (req, res) => {
-    try {
-      const data = await API.attachTerminal(
-        req.params.account,
-        req.params.terminalId,
-        req.params.serviceLineNumber
-      );
-      res.json(data);
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      res
-        .status(err.response?.status || 500)
-        .json({ error: err.response?.data || err.message });
-    }
-  }
-);
+  
+                 
+ 
 
-// (f) one‑shot activation
-/**
- * @swagger
- * /api/activate:
- *   post:
- *     summary: One‑shot activation (address → service‑line → attach)
- *     tags: [Activation]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema: { $ref: '#/components/schemas/ActivationRequest' }
- *     responses:
- *       200:
- *         description: Activation succeeded
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/ActivationResponse' }
- *       400: { description: Validation error }
- */
-app.post("/api/activate", async (req, res) => {
-  const { accountNumber, address, kitNumber, nickname } = req.body;
-  try {
-    const result = await activateStarlink({
-      accountNumber,
-      address,
-      kitNumber,
-      nickname,
-    });
-    res.json({ status: "activated", ...result });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({ error: err.message || "Activation failed" });
-  }
-});
+  
 
 /**
  * @swagger
@@ -2560,74 +2405,8 @@ app.post("/api/v2/activate", async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/accounts/{account}/user-terminals/{deviceId}:
- *   post:
- *     summary: Add a user terminal to an account
- *     tags: [UserTerminals]
- *     parameters:
- *       - in: path
- *         name: account
- *         required: true
- *         schema: { type: string }
- *       - in: path
- *         name: deviceId
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200:
- *         description: Terminal added successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 userTerminalId: { type: string }
- */
-app.post(
-  "/api/accounts/:account/user-terminals/:deviceId",
-  async (req, res) => {
-    try {
-      // First add the terminal
-      const addResult = await API.addUserTerminal(
-        req.params.account,
-        req.params.deviceId
-      );
 
-      if (addResult.errors && addResult.errors.length > 0) {
-        throw new Error(addResult.errors[0].errorMessage);
-      }
-
-      // Then get the terminal ID by listing and filtering
-      const terminals = await API.listUserTerminals(
-        req.params.account,
-        `?searchString=${req.params.deviceId}`
-      );
-
-      if (terminals.errors && terminals.errors.length > 0) {
-        throw new Error(terminals.errors[0].errorMessage);
-      }
-
-      const terminal = terminals.content.results.find(
-        (t) => t.kitSerialNumber === req.params.deviceId
-      );
-
-      if (!terminal) {
-        throw new Error("Terminal not found after adding kit");
-      }
-
-      res.json({
-        userTerminalId: terminal.userTerminalId,
-        kitSerialNumber: terminal.kitSerialNumber,
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(400).json({ error: err.message || "Failed to add terminal" });
-    }
-  }
-);
-
+ 
 /**
  * @swagger
  * /api/v2/accounts/{account}/user-terminals/{deviceId}:
@@ -2877,85 +2656,85 @@ app.post("/api/notifications/activation", async (req, res) => {
  *       400:
  *         description: Invalid request
  */
-app.get("/api/accounts/:account/validate-kit/:kitNumber", async (req, res) => {
-  try {
-    const { account, kitNumber } = req.params;
+// app.get("/api/accounts/:account/validate-kit/:kitNumber", async (req, res) => {
+//   try {
+//     const { account, kitNumber } = req.params;
 
-    // Search for terminals with the given kit number
-    // const terminals = await API.listUserTerminals(account, `?searchString=${kitNumber}`);
+//     // Search for terminals with the given kit number
+//     // const terminals = await API.listUserTerminals(account, `?searchString=${kitNumber}`);
 
-    // if (terminals.errors && terminals.errors.length > 0) {
-    //   throw new Error(terminals.errors[0].errorMessage);
-    // }
+//     // if (terminals.errors && terminals.errors.length > 0) {
+//     //   throw new Error(terminals.errors[0].errorMessage);
+//     // }
 
-    // const terminal = terminals.content.results.find(t => t.active  == true);
+//     // const terminal = terminals.content.results.find(t => t.active  == true);
 
-    // if (!terminal) {
-    //   return res.json({
-    //     isRegistered: false,
-    //     message: 'Kit number not registered to this account'
-    //   });
-    // }
+//     // if (!terminal) {
+//     //   return res.json({
+//     //     isRegistered: false,
+//     //     message: 'Kit number not registered to this account'
+//     //   });
+//     // }
 
-    //add the kitNumber to account, return error or don't
+//     //add the kitNumber to account, return error or don't
 
-    /* 
-    - If they bought the dish from us, automatically starlink adds the kits into the account for us so we want to always check if it is added to the account then continue activation
-    - But if they didn’t buy the dish from us, then while they are activating, we should add the kit to their account and then activate
+//     /* 
+//     - If they bought the dish from us, automatically starlink adds the kits into the account for us so we want to always check if it is added to the account then continue activation
+//     - But if they didn’t buy the dish from us, then while they are activating, we should add the kit to their account and then activate
     
-    */
+//     */
 
-    const result = await API.addUserTerminal(account, kitNumber);
-    const userTerminals = await API.listUserTerminals(
-      account,
-      `?searchString=${kitNumber}`
-    );
+//     const result = await API.addUserTerminal(account, kitNumber);
+//     const userTerminals = await API.listUserTerminals(
+//       account,
+//       `?searchString=${kitNumber}`
+//     );
 
-    if (userTerminals.errors && userTerminals.errors.length > 0) {
-      throw new Error(userTerminals.errors[0].errorMessage);
-    }
-    const terminal = userTerminals.content.results.find(
-      (t) => t.kitSerialNumber === kitNumber && t.active === true
-    );
+//     if (userTerminals.errors && userTerminals.errors.length > 0) {
+//       throw new Error(userTerminals.errors[0].errorMessage);
+//     }
+//     const terminal = userTerminals.content.results.find(
+//       (t) => t.kitSerialNumber === kitNumber && t.active === true
+//     );
 
-    if (result.errors && result.errors.length > 0) {
-      // if adding to account failed and terminal does not exist, then it maybe has been added to the wrong account
-      if (!terminal) {
-        return res.status(400).json({
-          isRegistered: false,
-          error:
-            result.errors[0].errorMessage ||
-            "Kit number not registered to this account",
-          message:
-            result.errors[0].errorMessage ||
-            "Kit number not registered to this account",
-        });
-      }
-      // if adding to account failed but terminal exists, then it has been added to the account maybe by starlink: we continue activation
-      // OR a previously failed activation attempt has added the terminal to the account
-      else {
-        return res.json({
-          isRegistered: true,
-          existing: true,
-          terminalDetails: terminal,
-        });
-      }
-    }
+//     if (result.errors && result.errors.length > 0) {
+//       // if adding to account failed and terminal does not exist, then it maybe has been added to the wrong account
+//       if (!terminal) {
+//         return res.status(400).json({
+//           isRegistered: false,
+//           error:
+//             result.errors[0].errorMessage ||
+//             "Kit number not registered to this account",
+//           message:
+//             result.errors[0].errorMessage ||
+//             "Kit number not registered to this account",
+//         });
+//       }
+//       // if adding to account failed but terminal exists, then it has been added to the account maybe by starlink: we continue activation
+//       // OR a previously failed activation attempt has added the terminal to the account
+//       else {
+//         return res.json({
+//           isRegistered: true,
+//           existing: true,
+//           terminalDetails: terminal,
+//         });
+//       }
+//     }
 
-    // If adding to account succeeded and terminal exists, then it has been added to the account by us: we continue activation
+//     // If adding to account succeeded and terminal exists, then it has been added to the account by us: we continue activation
 
-    return res.json({
-      isRegistered: false,
-      terminalDetails: terminal,
-      existing: false,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(400).json({
-      error: err.message || "Failed to validate kit number",
-    });
-  }
-});
+//     return res.json({
+//       isRegistered: false,
+//       terminalDetails: terminal,
+//       existing: false,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(400).json({
+//       error: err.message || "Failed to validate kit number",
+//     });
+//   }
+// });
 
 /**
  * @swagger
