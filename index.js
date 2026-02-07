@@ -46,18 +46,54 @@ const upload = multer({ dest: "uploads/" });
 // const upload = multer({ storage: multer.memoryStorage() });
 
 // YOUR Starlink Credentials - STORE THESE SAFELY
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
- 
+// const CLIENT_ID = process.env.CLIENT_ID;
+// const CLIENT_SECRET = process.env.CLIENT_SECRET;
+ // Near the top, after other env vars
+const SHARED_SECRET = process.env.STARLINK_SHARED_CLIENT_SECRET;
+const ACCOUNTS_MAP_JSON = process.env.STARLINK_V2_ACCOUNTS || '{}';
+
+// Parse once at startup
+let accountsMap;
+try {
+  accountsMap = JSON.parse(ACCOUNTS_MAP_JSON);
+} catch (err) {
+  console.error("Failed to parse STARLINK_V2_ACCOUNTS:", err.message);
+  accountsMap = {};
+}
+
+function getV2Credentials(accountKey) {
+  const key = accountKey || "__default__";
+
+  if (!SHARED_SECRET) {
+    throw new Error("Missing STARLINK_SHARED_CLIENT_SECRET in .env");
+  }
+
+  const clientId = accountsMap[key];
+  if (!clientId) {
+    // Optional: fallback to old single/default vars if you keep them
+    // if (process.env.V2_CLIENT_ID && process.env.V2_CLIENT_SECRET) {
+    //   return {
+    //     clientId: process.env.V2_CLIENT_ID,
+    //     clientSecret: process.env.V2_CLIENT_SECRET
+    //   };
+    // }
+    throw new Error(`No clientId found for account '${key}' in STARLINK_V2_ACCOUNTS`);
+  }
+
+  return {
+    clientId,
+    clientSecret: SHARED_SECRET
+  };
+}
 
 const mapkey = process.env.GOOGLE_MAP_KEY;
 // Optional override for Starlink v2 API base; falls back to v1 base if not set
 const STARLINK_BASE_URL_V2 =
   process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public";
 // Optional default v2 credentials (used only if no per-account entry is found)
-const V2_DEFAULT_CLIENT_ID = process.env.V2_CLIENT_ID;
-const V2_DEFAULT_CLIENT_SECRET = process.env.V2_CLIENT_SECRET;
-const V2_CREDENTIALS_JSON = process.env.STARLINK_V2_CREDENTIALS || "{}";
+// const V2_DEFAULT_CLIENT_ID = process.env.V2_CLIENT_ID;
+// const V2_DEFAULT_CLIENT_SECRET = process.env.V2_CLIENT_SECRET;
+// const V2_CREDENTIALS_JSON = process.env.STARLINK_V2_CREDENTIALS || "{}";
  
 
 const MockAPI = require("./mocks/mock");
@@ -342,24 +378,24 @@ async function getBearerToken() {
   }
 }
 
-function parseV2CredentialStore() {
-  try {
-    return JSON.parse(V2_CREDENTIALS_JSON);
-  } catch (err) {
-    console.error("Failed to parse STARLINK_V2_CREDENTIALS JSON:", err.message);
-    return {};
-  }
-}
+// function parseV2CredentialStore() {
+//   try {
+//     return JSON.parse(V2_CREDENTIALS_JSON);
+//   } catch (err) {
+//     console.error("Failed to parse STARLINK_V2_CREDENTIALS JSON:", err.message);
+//     return {};
+//   }
+// }
 
-function getV2Credentials(account) {
-  const store = parseV2CredentialStore();
-  const key = account || "__default__";
-  if (store[key]) return store[key];
-  if (V2_DEFAULT_CLIENT_ID && V2_DEFAULT_CLIENT_SECRET) {
-    return { clientId: V2_DEFAULT_CLIENT_ID, clientSecret: V2_DEFAULT_CLIENT_SECRET };
-  }
-  return null;
-}
+// function getV2Credentials(account) {
+//   const store = parseV2CredentialStore();
+//   const key = account || "__default__";
+//   if (store[key]) return store[key];
+//   if (V2_DEFAULT_CLIENT_ID && V2_DEFAULT_CLIENT_SECRET) {
+//     return { clientId: V2_DEFAULT_CLIENT_ID, clientSecret: V2_DEFAULT_CLIENT_SECRET };
+//   }
+//   return null;
+// }
 
 async function getBearerTokenV2(account) {
   const accountKey = account || "__default__";
@@ -1930,31 +1966,88 @@ app.get("/api/accounts", async (req, res) => {
  * @swagger
  * /api/v2/account:
  *   get:
- *     summary: Get account info (v2, single account tied to token)
- *     tags: [Accounts v2]
+ *     summary: Get account info (v2)
+ *     description: Retrieves Starlink account details for a specific account key
+ *     parameters:
+ *       - in: query
+ *         name: account
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Account identifier from your service accounts (e.g. ACC-4635460-74859-26)
  *     responses:
- *       200: { description: Account details }
+ *       200:
+ *         description: Account details from Starlink API
+ *       400:
+ *         description: Missing or invalid account parameter
+ *       401:
+ *         description: Authentication failed
+ *       500:
+ *         description: Server or upstream error
  */
 app.get("/api/v2/account", async (req, res) => {
+  console.log("HIT /api/v2/account");
+  console.log("Full query object:", req.query);
+  console.log("account param:", req.query.account);
+  console.log("account param type:", typeof req.query.account);
+
   try {
     const account = req.query.account;
+
     if (!account) {
-      return res
-        .status(400)
-        .json({ error: "account query parameter is required for v2" });
+      return res.status(400).json({
+        error: "account query parameter is required (e.g. ?account=ACC-4635460-74859-26)"
+      });
     }
-    const data = await makeAuthedGetV2(account, `/v2/account`);
+
+    console.log("Using account key:", account);
+
+    // Your existing call
+    const data = await makeAuthedGetV2(account, `/v2/account`);  // ← adjust path if needed
     res.json(data);
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    res
-      .status(err.response?.status || 500)
-      .json({ error: err.response?.data || "Could not fetch account (v2)" });
+    console.error("Error in /api/v2/account:", err.message);
+    console.error("Full error:", err);
+    res.status(500).json({ error: err.message || "Internal Server Error" });
   }
 });
+// app.get("/api/v2/account", async (req, res) => {
+//   try {
+//     const account = req.query.account;
+//     if (!account) {
+//       return res
+//         .status(400)
+//         .json({ error: "account query parameter is required for v2" });
+//     }
+//     const data = await makeAuthedGetV2(account, `/v2/account`);
+//     res.json(data);
+//   } catch (err) {
+//     console.error(err.response?.data || err.message);
+//     res
+//       .status(err.response?.status || 500)
+//       .json({ error: err.response?.data || "Could not fetch account (v2)" });
+//   }
+// });
+
 
 // (a) create address
+// app.get("/api/v2/account", async (req, res) => {
+  
+//   try {
+//     // No query param needed — Starlink uses the auth context
+//     // Adjust makeAuthedGetV2 call if it currently requires 'account' arg
+//     const data = await makeAuthedGetV2(null, `/public/v2/account`);  // ← use full public path if needed
+//     // or if your function doesn't need the first arg anymore:
+//     // const data = await makeAuthedGetV2(`/public/v2/account`);
 
+//     res.json(data);
+//   } catch (err) {
+//     console.error(err.response?.data || err.message);
+//     const status = err.response?.status || 500;
+//     const errorMsg = err.response?.data?.error || err.message || "Could not fetch account (v2)";
+//     res.status(status).json({ error: errorMsg });
+//   }
+// });
 /**
  * @swagger
  * components:
@@ -2182,7 +2275,44 @@ app.get("/api/v2/accounts/:account/servicelines", async (req, res) => {
       .json({ error: err.response?.data || err.message });
   }
 });
-
+app.get("/api/v2/accounts/list", (req, res) => {
+  try {
+    // This is the full list of accounts from your .env file (the source of truth)
+   const accountKeys = Object.keys(accountsMap || {});
+    const partnersInfo = {
+      "ACC-6814367-50278-22": { regionCode: "PH", displayName: "PCSWiFi4Every1" },
+      "ACC-7580055-64428-19": { regionCode: "PH", displayName: "ISOC Resilience" },
+      "ACC-7071161-50554-7": { regionCode: "PH", displayName: "WirelessLink" },
+      "ACC-DF-9012567-86171-1": { regionCode: "PH", displayName: "Yuno Network" },
+      "ACC-DF-9012511-23590-86": { regionCode: "PH", displayName: "Globe" },
+      "ACC-7393314-12390-10": { regionCode: "NG", displayName: "TESTER API ACCOUNT" },
+      "ACC-DF-9012430-88305-91": { regionCode: "NG", displayName: "Eritel" },
+      "ACC-DF-8910267-22774-3": { regionCode: "MX", displayName: "Comnet" },
+      "ACC-DF-8944908-16857-17": { regionCode: "MX", displayName: "CMC Network" },
+      "ACC-DF-8914998-17079-20": { regionCode: "KE", displayName: "KakumaVentures" },
+      // add remaining accounts...
+    };
+   const results = accountKeys.map(key => {
+      const info = partnersInfo[key] || { regionCode: "??",
+        displayName: key };
+      return {
+        accountNumber: key,
+        regionCode: info.regionCode,
+        accountName: info.displayName,
+      };
+    });
+    res.json({
+      success: true,
+      data: {
+        content: {
+          results: results
+        }
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to list accounts" });
+  }
+});
 // (c) create service line
 /**
  * @swagger
