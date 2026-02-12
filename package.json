@@ -1,7 +1,7 @@
 {
   "name": "starlink-api-project",
-  "version": "1.0.0",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Starlink Enterprise API v2 integration for terminal activation and management",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

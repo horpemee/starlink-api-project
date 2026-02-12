@@ -56,9 +56,9 @@ const swaggerSpec = swaggerJsdoc({
     openapi: "3.0.1",
     info: {
       title: "Starlink Activation Gateway",
-      version: "1.0.0",
+      version: "2.0.0",
       description:
-        "Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.",
+        "Express wrapper around the Starlink Enterprise Activation API v2 – docs generated from JSDoc.",
     },
     // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
     servers: [
@@ -1280,34 +1280,34 @@ const API =
             longitude,
           };
 
-          return makeAuthedPost(`/v1/account/${acct}/addresses`, newPayload);
+          return makeAuthedPost(`/v2/account/${acct}/addresses`, newPayload);
         },
         getAvailableProducts: (acct) => {
           return makeAuthedGet(
-            `/v1/account/${acct}/service-lines/available-products`
+            `/v2/account/${acct}/service-lines/available-products`
           );
         },
         createServiceLine: async (acct, payload) => {
-          return makeAuthedPost(`/v1/account/${acct}/service-lines`, payload);
+          return makeAuthedPost(`/v2/account/${acct}/service-lines`, payload);
         },
         updateServiceLineNickname: (acct, serviceLineNumber, body) =>
           makeAuthedPut(
-            `/v1/account/${acct}/service-lines/${serviceLineNumber}/nickname`,
+            `/v2/account/${acct}/service-lines/${serviceLineNumber}/nickname`,
             body
           ),
         listUserTerminals: (acct, params = "") =>
-          makeAuthedGet(`/v1/account/${acct}/user-terminals${params}`),
+          makeAuthedGet(`/v2/account/${acct}/user-terminals${params}`),
         addUserTerminal: (acct, deviceId) =>
-          makeAuthedPost(`/v1/account/${acct}/user-terminals/${deviceId}`),
+          makeAuthedPost(`/v2/account/${acct}/user-terminals/${deviceId}`),
         attachTerminal: (acct, terminalId, serviceLineNumber) =>
           makeAuthedPost(
-            `/v1/account/${acct}/user-terminals/${terminalId}/${serviceLineNumber}`,
+            `/v2/account/${acct}/user-terminals/${terminalId}/${serviceLineNumber}`,
             {}
           ),
 
         removeDeviceFromAccount: (acct, deviceId) => {
           return makeAuthedDelete(
-            `/v1/account/${acct}/user-terminals/${deviceId}`
+            `/v2/account/${acct}/user-terminals/${deviceId}`
           );
         },
       };
@@ -1418,7 +1418,7 @@ app.delete(
 
 app.get("/api/accounts", async (req, res) => {
   try {
-    const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
+    const data = await makeAuthedGet(`/v2/accounts?limit=50&page=0`);
     const unwantedAccounts = [
       "ACC-3196223-39704-14",
       "ACC-2959688-22725-30",
@@ -1604,7 +1604,7 @@ app.get("/api/accounts/:account/products", async (req, res) => {
 
 app.get("/api/accounts", async (req, res) => {
   try {
-    const data = await makeAuthedGet("/v1/accounts");
+    const data = await makeAuthedGet("/v2/accounts");
     res.json(data);
   } catch (err) {
     console.error(err.response?.data || err.message);
@@ -1632,7 +1632,7 @@ app.get("/api/accounts", async (req, res) => {
 app.get("/api/accounts/:account/servicelines", async (req, res) => {
   try {
     const data = await makeAuthedGet(
-      `/v1/account/${req.params.account}/service-lines`
+      `/v2/account/${req.params.account}/service-lines`
     );
     res.json(data);
   } catch (err) {
