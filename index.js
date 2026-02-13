@@ -1428,8 +1428,7 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-DF-11401483-98894-56",
       "ACC-7393314-12390-10",
       "ACC-DF-9022857-69501-2",
-      "ACC-DF-9012430-88305-91",
-      "ACC-4635460-74859-26",
+  
       "ACC-DF-8914998-17079-20",
     ];
     // Filter out unwanted accounts
