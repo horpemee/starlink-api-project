@@ -40,6 +40,14 @@ app.use(
 // Middleware to parse JSON and URL encoded data
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.url}`);
+  next();
+});
+
 const multer = require("multer");
 const fs = require("fs");
 const upload = multer({ dest: "uploads/" });
@@ -377,25 +385,6 @@ async function getBearerToken() {
     throw new Error("Failed to get bearer token");
   }
 }
-
-// function parseV2CredentialStore() {
-//   try {
-//     return JSON.parse(V2_CREDENTIALS_JSON);
-//   } catch (err) {
-//     console.error("Failed to parse STARLINK_V2_CREDENTIALS JSON:", err.message);
-//     return {};
-//   }
-// }
-
-// function getV2Credentials(account) {
-//   const store = parseV2CredentialStore();
-//   const key = account || "__default__";
-//   if (store[key]) return store[key];
-//   if (V2_DEFAULT_CLIENT_ID && V2_DEFAULT_CLIENT_SECRET) {
-//     return { clientId: V2_DEFAULT_CLIENT_ID, clientSecret: V2_DEFAULT_CLIENT_SECRET };
-//   }
-//   return null;
-// }
 
 async function getBearerTokenV2(account) {
   const accountKey = account || "__default__";
@@ -1235,28 +1224,6 @@ app.post("/api/auth/reset-password-request", async (req, res) => {
  *       400: { description: Invalid OTP or email }
  */
 
-// app.post("/api/auth/reset-password", async (req, res) => {
-//   const { email, otp, newPassword } = req.body;
-//   if (!email || !otp || !newPassword) {
-//     return res
-//       .status(400)
-//       .json({ error: "Email, OTP, and new password are required" });
-//   }
-
-//   const storedOtp = otps.get(email);
-//   if (!storedOtp || storedOtp.otp !== otp || Date.now() > storedOtp.exp) {
-//     return res.status(400).json({ error: "Invalid or expired OTP" });
-//   }
-
-//   const user = users.get(email);
-//   if (!user) {
-//     return res.status(400).json({ error: "User not found" });
-//   }
-//   const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-//   users.set(email, { ...user, password: newPassword });
-//   otps.delete(email);
-//   res.json({ success: true, message: "Password reset successful" });
-// });
 app.post("/api/auth/reset-password", async (req, res) => {
   const { email, otp, newPassword } = req.body;
   try {
@@ -1285,91 +1252,6 @@ app.post("/api/auth/reset-password", async (req, res) => {
     res
       .status(500)
       .json({ error: "Failed to reset password", details: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/report:
- *   post:
- *     summary: Submit an impact report
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               kitNumber: { type: string }
- *               company: { type: string }
- *               reporterName: { type: string }
- *               reporterEmail: { type: string }
- *               region: { type: string }
- *               peopleCovered: { type: number }
- *               peopleAccessing: { type: number }
- *               civicLocation: { type: string }
- *               otherLocation: { type: string }
- *               freeAccessUsers: { type: string }
- *               additionalComments: { type: string }
- *               infraPhotos: { type: array, items: { type: string, format: binary } }
- *     responses:
- *       201: { description: Report submitted successfully }
- *       400: { description: Invalid request }
- */
-
-app.post("/api/report", upload.array("infraPhotos"), async (req, res) => {
-  const {
-    kitNumber,
-    company,
-    reporterName,
-    reporterEmail,
-    region,
-    peopleCovered,
-    peopleAccessing,
-    civicLocation,
-    otherLocation,
-    freeAccessUsers,
-    additionalComments,
-  } = req.body;
-
-  if (
-    !kitNumber ||
-    !company ||
-    !reporterName ||
-    !reporterEmail ||
-    !region ||
-    !peopleCovered ||
-    !peopleAccessing ||
-    !civicLocation ||
-    (civicLocation === "Other" && !otherLocation)
-  ) {
-    return res
-      .status(400)
-      .json({ error: "All required fields must be provided" });
-  }
-
-  const reportData = {
-    kitNumber,
-    company,
-    reporterName,
-    reporterEmail,
-    region,
-    peopleCovered: parseInt(peopleCovered),
-    peopleAccessing: parseInt(peopleAccessing),
-    civicLocation,
-    otherLocation: civicLocation === "Other" ? otherLocation : undefined,
-    freeAccessUsers,
-    additionalComments,
-    infraPhotos: req.files ? req.files.map((file) => file.buffer) : [],
-  };
-
-  try {
-    await sendReportConfirmationEmail(reporterEmail, reportData);
-    res
-      .status(201)
-      .json({ success: true, message: "Report submitted successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
 });
 
@@ -1535,11 +1417,9 @@ const API_V2 =
         addUserTerminal: (acct, deviceId) =>
           makeAuthedPostV2(acct, `/v2/user-terminals`, { deviceId }),
         attachTerminal: (acct, deviceId, serviceLineNumber) =>
-        // attachTerminal: (acct, kitNumber, serviceLineNumber) =>
           makeAuthedPostV2(
             acct,
             `/v2/service-lines/${serviceLineNumber}/user-terminals`,
-            // { deviceId: kitNumber }
             { deviceId}
           ),
 
@@ -1639,95 +1519,6 @@ async function activateStarlink({
   };
 }
 
-// async function activateStarlinkV2({
-//   accountNumber,
-//   address,
-//   kitNumber,
-//   nickname,
-// }) {
-//   console.log("[activateStarlinkV2] called with :::");
-//   if (!accountNumber || !address || !kitNumber || !nickname)
-//     throw new Error(
-//       "accountNumber, address, productCode and userTerminalId are required"
-//     );
-
-//   // 1. Create address
-//   const addressRes = await API_V2.createAddress(accountNumber, address);
-//   const addressNumber =
-//     addressRes.content?.addressReferenceId ||
-//     addressRes.content?.addressNumber ||
-//     addressRes.addressReferenceId;
-//   if (!addressNumber)
-//     throw new Error("Address creation failed - missing addressReferenceId");
-
-//   // 2. Validate product code
-//   const products = await API_V2.getAvailableProducts(accountNumber);
-//   const prods = products.content?.results || products.results || [];
-//   if (prods.length === 0)
-//     throw new Error("No product available for the supplied account number");
-
-//   // 3. Create service line
-//   const serviceLineRes = await API_V2.createServiceLine(accountNumber, {
-//     addressReferenceId: addressNumber,
-//     productReferenceId: prods[0].productReferenceId,
-//   });
-//   const serviceLineNumber =
-//     serviceLineRes.content?.serviceLineNumber ||
-//     serviceLineRes.serviceLineNumber;
-//   if (!serviceLineNumber)
-//     throw new Error("Service line creation failed - missing serviceLineNumber");
-
-//   //3.x Add nickname to service line
-//   const nicknameRes = await API_V2.updateServiceLineNickname(
-//     accountNumber,
-//     serviceLineNumber,
-//     { nickname }
-//   );
-
-//   if (nicknameRes.errors && nicknameRes.errors.length > 0) {
-//     throw Error(nicknameRes.errors[0].errorMessage);
-//   }
-
-//   const userTerminalRes = await API_V2.addUserTerminal(accountNumber, kitNumber);
-
-//   if (userTerminalRes.errors && userTerminalRes.errors.length > 0) {
-//     throw Error(userTerminalRes.errors[0].errorMessage);
-//   }
-
-//   const allTerminals = await API_V2.listUserTerminals(
-//     accountNumber,
-//     `?searchString=${kitNumber}`
-//   );
-
-//   if (allTerminals.errors && allTerminals.errors.length > 0) {
-//     throw Error(allTerminals.errors[0].errorMessage);
-//   }
-
-//   const myTerminal = (allTerminals.content?.results || []).filter(
-//     (x) => x.kitSerialNumber === kitNumber || x.serialNumber === kitNumber
-//   );
-
-//   if (myTerminal.length <= 0) {
-//     throw Error("Terminal has not been added to account");
-//   }
-//   // const userTerminalId = myTerminal[0].userTerminalId;
-
-//   // 5. Attach terminal to service line
-//   const attachRes = await API_V2.attachTerminal(
-//     accountNumber,
-//     kitNumber,
-//     // userTerminalId,
-//     serviceLineNumber
-//   );
-
-//   return {
-//     address: addressRes,
-//     serviceLine: serviceLineRes,
-//     userTerminal: userTerminalRes,
-//     attach: attachRes,
-//   };
-// }
-
 async function activateStarlinkV2({
   accountNumber,
   address,
@@ -1773,24 +1564,6 @@ async function activateStarlinkV2({
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
-
-  // 1. Add terminal (if not already present)
-  //start
-  // console.log(`Adding terminal ${kitNumber} to account...`);
-  // const addRes = await API_V2.addUserTerminal(accountNumber, kitNumber);
-
-  // if (addRes.errors && addRes.errors.length > 0) {
-  //   throw new Error(addRes.errors[0].errorMessage || "Failed to add terminal");
-  // }
-
-  // // 2. Wait until it's visible
-  // const terminal = await waitForTerminalVisible();
-
-  // // Optional: Early exit if already active (prevents duplicate activations)
-  // if (terminal.status?.toLowerCase() === "active") {
-  //   throw new Error(`Terminal ${kitNumber} is already active/attached. Activation skipped.`);
-  // }
-//end
 
 console.log(`Checking if terminal ${kitNumber} already exists...`);
   const initialTerminalsRes = await API_V2.listUserTerminals(
@@ -2011,43 +1784,6 @@ app.get("/api/v2/account", async (req, res) => {
     res.status(500).json({ error: err.message || "Internal Server Error" });
   }
 });
-// app.get("/api/v2/account", async (req, res) => {
-//   try {
-//     const account = req.query.account;
-//     if (!account) {
-//       return res
-//         .status(400)
-//         .json({ error: "account query parameter is required for v2" });
-//     }
-//     const data = await makeAuthedGetV2(account, `/v2/account`);
-//     res.json(data);
-//   } catch (err) {
-//     console.error(err.response?.data || err.message);
-//     res
-//       .status(err.response?.status || 500)
-//       .json({ error: err.response?.data || "Could not fetch account (v2)" });
-//   }
-// });
-
-
-// (a) create address
-// app.get("/api/v2/account", async (req, res) => {
-  
-//   try {
-//     // No query param needed — Starlink uses the auth context
-//     // Adjust makeAuthedGetV2 call if it currently requires 'account' arg
-//     const data = await makeAuthedGetV2(null, `/public/v2/account`);  // ← use full public path if needed
-//     // or if your function doesn't need the first arg anymore:
-//     // const data = await makeAuthedGetV2(`/public/v2/account`);
-
-//     res.json(data);
-//   } catch (err) {
-//     console.error(err.response?.data || err.message);
-//     const status = err.response?.status || 500;
-//     const errorMsg = err.response?.data?.error || err.message || "Could not fetch account (v2)";
-//     res.status(status).json({ error: errorMsg });
-//   }
-// });
 /**
  * @swagger
  * components:
@@ -2187,28 +1923,6 @@ app.post("/api/v2/accounts/:account/addresses", async (req, res) => {
 app.get("/api/v2/accounts/:account/products", async (req, res) => {
   try {
     const data = await API_V2.getAvailableProducts(req.params.account);
-    res.json(data);
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res
-      .status(err.response?.status || 500)
-      .json({ error: err.response?.data || err.message });
-  }
-});
-
-/**
- * @swagger
- * /api/accounts:
- *   get:
- *     summary: List available accounts
- *     tags: [Accounts]
- *     responses:
- *       200: { description: List of accounts }
- */
-
-app.get("/api/accounts", async (req, res) => {
-  try {
-    const data = await makeAuthedGet("/v1/accounts");
     res.json(data);
   } catch (err) {
     console.error(err.response?.data || err.message);
@@ -2575,7 +2289,7 @@ app.post(
 
 /**
  * @swagger
- * /api/notifications/activation:
+ * /api/v2/notifications/activation:
  *   post:
  *     summary: Send activation notification email
  *     tags: [Notifications]
@@ -2648,7 +2362,7 @@ app.post(
  *                   type: string
  *                   example: "Failed to send activation notification"
  */
-app.post("/api/notifications/activation", async (req, res) => {
+app.post("/api/v2/notifications/activation", async (req, res) => {
   try {
     const {
       contactEmail,
@@ -2786,86 +2500,6 @@ app.post("/api/notifications/activation", async (req, res) => {
  *       400:
  *         description: Invalid request
  */
-// app.get("/api/accounts/:account/validate-kit/:kitNumber", async (req, res) => {
-//   try {
-//     const { account, kitNumber } = req.params;
-
-//     // Search for terminals with the given kit number
-//     // const terminals = await API.listUserTerminals(account, `?searchString=${kitNumber}`);
-
-//     // if (terminals.errors && terminals.errors.length > 0) {
-//     //   throw new Error(terminals.errors[0].errorMessage);
-//     // }
-
-//     // const terminal = terminals.content.results.find(t => t.active  == true);
-
-//     // if (!terminal) {
-//     //   return res.json({
-//     //     isRegistered: false,
-//     //     message: 'Kit number not registered to this account'
-//     //   });
-//     // }
-
-//     //add the kitNumber to account, return error or don't
-
-//     /* 
-//     - If they bought the dish from us, automatically starlink adds the kits into the account for us so we want to always check if it is added to the account then continue activation
-//     - But if they didn’t buy the dish from us, then while they are activating, we should add the kit to their account and then activate
-    
-//     */
-
-//     const result = await API.addUserTerminal(account, kitNumber);
-//     const userTerminals = await API.listUserTerminals(
-//       account,
-//       `?searchString=${kitNumber}`
-//     );
-
-//     if (userTerminals.errors && userTerminals.errors.length > 0) {
-//       throw new Error(userTerminals.errors[0].errorMessage);
-//     }
-//     const terminal = userTerminals.content.results.find(
-//       (t) => t.kitSerialNumber === kitNumber && t.active === true
-//     );
-
-//     if (result.errors && result.errors.length > 0) {
-//       // if adding to account failed and terminal does not exist, then it maybe has been added to the wrong account
-//       if (!terminal) {
-//         return res.status(400).json({
-//           isRegistered: false,
-//           error:
-//             result.errors[0].errorMessage ||
-//             "Kit number not registered to this account",
-//           message:
-//             result.errors[0].errorMessage ||
-//             "Kit number not registered to this account",
-//         });
-//       }
-//       // if adding to account failed but terminal exists, then it has been added to the account maybe by starlink: we continue activation
-//       // OR a previously failed activation attempt has added the terminal to the account
-//       else {
-//         return res.json({
-//           isRegistered: true,
-//           existing: true,
-//           terminalDetails: terminal,
-//         });
-//       }
-//     }
-
-//     // If adding to account succeeded and terminal exists, then it has been added to the account by us: we continue activation
-
-//     return res.json({
-//       isRegistered: false,
-//       terminalDetails: terminal,
-//       existing: false,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(400).json({
-//       error: err.message || "Failed to validate kit number",
-//     });
-//   }
-// });
-
 /**
  * @swagger
  * /api/v2/accounts/{account}/validate-kit/{kitNumber}:
@@ -2888,7 +2522,8 @@ app.post("/api/notifications/activation", async (req, res) => {
 app.get("/api/v2/accounts/:account/validate-kit/:kitNumber", async (req, res) => {
   try {
     const { account, kitNumber } = req.params;
-    const addResult = await API_V2.addUserTerminal(account, kitNumber);
+    
+    // Step 1: Check if terminal already exists in account
     const userTerminals = await API_V2.listUserTerminals(
       account,
       `?searchString=${kitNumber}`
@@ -2897,36 +2532,91 @@ app.get("/api/v2/accounts/:account/validate-kit/:kitNumber", async (req, res) =>
     if (userTerminals.errors && userTerminals.errors.length > 0) {
       throw new Error(userTerminals.errors[0].errorMessage);
     }
+
     const terminal = (userTerminals.content?.results || []).find(
-      (t) => t.kitSerialNumber === kitNumber && t.active === true
+      (t) => t.kitSerialNumber === kitNumber || t.serialNumber === kitNumber
     );
 
-    if (addResult.errors && addResult.errors.length > 0) {
-      if (!terminal) {
+    // If terminal exists and is already attached to a service line, it's already activated
+    if (terminal) {
+      if (terminal.serviceLineNumber || terminal.serviceLineReferenceId) {
         return res.status(400).json({
           isRegistered: false,
-          error:
-            addResult.errors[0].errorMessage ||
-            "Kit number not registered to this account",
-        });
-      } else {
-        return res.json({
-          isRegistered: true,
           existing: true,
+          alreadyActivated: true,
           terminalDetails: terminal,
+          error: "This kit has already been activated and is attached to a service line",
         });
       }
+      
+      // Terminal exists but not yet activated - this is good, proceed with activation
+      return res.json({
+        isRegistered: true,
+        existing: true,
+        alreadyActivated: false,
+        terminalDetails: terminal,
+        message: "Kit found in account, ready for activation",
+      });
     }
 
-    return res.json({
-      isRegistered: !!terminal,
-      terminalDetails: terminal,
-      existing: !!terminal,
+    // Step 2: Terminal not found, try to add it
+    // Note: Starlink's addUserTerminal doesn't validate kit numbers - it always succeeds
+    // The only way to verify validity is to check if it appears in listUserTerminals after adding
+    const addResult = await API_V2.addUserTerminal(account, kitNumber);
+
+    // If add operation returned errors, handle them (though this rarely happens)
+    if (addResult.errors && addResult.errors.length > 0) {
+      return res.status(400).json({
+        isRegistered: false,
+        existing: false,
+        alreadyActivated: false,
+        terminalDetails: null,
+        error: addResult.errors[0].errorMessage || "Failed to add kit to account",
+      });
+    }
+
+    // Step 3: Verify the kit is now visible in the account
+    // This is the ONLY reliable way to confirm the kit number is valid
+    const verifyTerminals = await API_V2.listUserTerminals(
+      account,
+      `?searchString=${kitNumber}`
+    );
+
+    if (verifyTerminals.errors && verifyTerminals.errors.length > 0) {
+      throw new Error(verifyTerminals.errors[0].errorMessage);
+    }
+
+    const addedTerminal = (verifyTerminals.content?.results || []).find(
+      (t) => t.kitSerialNumber === kitNumber || t.serialNumber === kitNumber
+    );
+
+    if (addedTerminal) {
+      // Successfully added and verified - kit is valid
+      return res.json({
+        isRegistered: true,
+        existing: false,
+        alreadyActivated: false,
+        terminalDetails: addedTerminal,
+        message: "Kit successfully added to account, ready for activation",
+      });
+    }
+
+    // Add succeeded but terminal is NOT visible - this means the kit number is invalid
+    return res.status(400).json({
+      isRegistered: false,
+      existing: false,
+      alreadyActivated: false,
+      terminalDetails: null,
+      error: "Kit number is invalid or does not belong to this account",
     });
+
   } catch (err) {
     console.error(err);
-    res.status(400).json({
-      error: err.message || "Failed to validate kit number (v2)",
+    res.status(500).json({
+      isRegistered: false,
+      existing: false,
+      terminalDetails: null,
+      error: err.message || "Failed to validate kit number",
     });
   }
 });
@@ -2934,7 +2624,131 @@ app.get("/", async (req, res) => {
   res.send({ message: "Starlink Activation Server is running 🚀" });
 });
 
-app.get("/api/health", (req, res) => {
+/**
+ * @swagger
+ * /api/v2/test/kit-validation:
+ *   post:
+ *     summary: Test kit validation behavior empirically
+ *     description: Attempts to add various invalid kit numbers and logs raw API responses to understand Starlink's validation behavior
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               account:
+ *                 type: string
+ *                 description: Account identifier (e.g., ACC-xxx-xxx-xx)
+ *               testKits:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of kit numbers to test (default includes invalid patterns)
+ *     responses:
+ *       200:
+ *         description: Test results with raw API responses from each attempt
+ */
+app.post("/api/v2/test/kit-validation", async (req, res) => {
+  try {
+    const { account, testKits } = req.body;
+    
+    if (!account) {
+      return res.status(400).json({ error: "account parameter is required" });
+    }
+
+    // Default test kit numbers covering various invalid patterns
+    const kitsToTest = testKits || [
+      "INVALID123",           // Completely invalid format
+      "000000000000",         // All zeros
+      "999999999999",         // All nines
+      "12345",                // Too short
+      "ABCDEFGHIJKLMNOP",     // Random letters
+      "TEST-KIT-001",         // Random with dashes
+      "KIT0000000001",        // Kit prefix with zeros
+    ];
+
+    console.log(`\n[TEST] Starting kit validation test for account ${account}`);
+    const results = [];
+
+    for (const kitNumber of kitsToTest) {
+      console.log(`\n[TEST] Testing kit: ${kitNumber}`);
+      const testResult = {
+        kitNumber,
+        steps: [],
+      };
+
+      try {
+        // Step 1: Try to add the kit
+        console.log(`  Step 1: Attempting to add kit ${kitNumber}...`);
+        const addResponse = await API_V2.addUserTerminal(account, kitNumber);
+        testResult.steps.push({
+          step: "addUserTerminal",
+          rawResponse: addResponse,
+          hasErrors: !!(addResponse.errors && addResponse.errors.length > 0),
+          errors: addResponse.errors || [],
+        });
+        console.log(`  Add response:`, JSON.stringify(addResponse, null, 2));
+
+        // Step 2: If add didn't error, check if it's now searchable
+        if (!addResponse.errors || addResponse.errors.length === 0) {
+          console.log(`  Step 2: Checking if ${kitNumber} is now searchable...`);
+          const listResponse = await API_V2.listUserTerminals(
+            account,
+            `?searchString=${kitNumber}`
+          );
+          testResult.steps.push({
+            step: "listUserTerminals (after add)",
+            rawResponse: listResponse,
+            hasErrors: !!(listResponse.errors && listResponse.errors.length > 0),
+            errors: listResponse.errors || [],
+            resultsCount: (listResponse.content?.results || []).length,
+            results: listResponse.content?.results || [],
+          });
+          console.log(`  Search response:`, JSON.stringify(listResponse, null, 2));
+        }
+      } catch (stepError) {
+        testResult.steps.push({
+          step: "error",
+          error: stepError.message,
+          stack: stepError.stack,
+        });
+        console.error(`  Error during test:`, stepError.message);
+      }
+
+      results.push(testResult);
+    }
+
+    console.log(`\n[TEST] Kit validation test complete for account ${account}\n`);
+
+    res.json({
+      account,
+      testDate: new Date().toISOString(),
+      message: "Kit validation test completed. Check backend logs for detailed raw responses.",
+      testSummary: results.map((r) => ({
+        kitNumber: r.kitNumber,
+        stepCount: r.steps.length,
+        hasErrors: r.steps.some((s) => s.hasErrors || s.error),
+        steps: r.steps.map((s) => ({
+          step: s.step,
+          hasErrors: s.hasErrors || !!s.error,
+          errors: s.errors || [],
+          resultsCount: s.resultsCount,
+        })),
+      })),
+      fullResults: results, // Full details in response
+    });
+  } catch (error) {
+    console.error("[TEST] Kit validation test failed:", error);
+    res.status(500).json({
+      error: "Test failed",
+      message: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+});
+
+app.get("/api/v2/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
