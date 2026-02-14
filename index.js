@@ -1676,65 +1676,143 @@ app.delete(
   }
 );
 
-app.get("/api/accounts", async (req, res) => {
-  try {
-    const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
-    const unwantedAccounts = [
-      "ACC-3196223-39704-14",
-      "ACC-2959688-22725-30",
-      "ACC-8653096-80387-28",
-      "ACC-2963072-59271-18",
-      "ACC-2866843-91611-20",
-      // "ACC-7393314-12390-10",
-      "ACC-DF-9022857-69501-2",
-      "ACC-DF-9012430-88305-91",
-      // "ACC-4635460-74859-26",
-      "ACC-DF-8914998-17079-20",
-    ];
-    // Filter out unwanted accounts
-    data.content.results = data.content.results.filter(
-      (account) => !unwantedAccounts.includes(account.accountNumber)
-    );
+// app.get("/api/accounts", async (req, res) => {
+//   try {
+//     const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
+//     const unwantedAccounts = [
+//       "ACC-3196223-39704-14",
+//       "ACC-2959688-22725-30",
+//       "ACC-8653096-80387-28",
+//       "ACC-2963072-59271-18",
+//       "ACC-2866843-91611-20",
+//       // "ACC-7393314-12390-10",
+//       "ACC-DF-9022857-69501-2",
+//       "ACC-DF-9012430-88305-91",
+//       // "ACC-4635460-74859-26",
+//       "ACC-DF-8914998-17079-20",
+//     ];
+//     // Filter out unwanted accounts
+//     data.content.results = data.content.results.filter(
+//       (account) => !unwantedAccounts.includes(account.accountNumber)
+//     );
 
-    // account number to rename mapping
-    const accountRenames = {
-      "ACC-6814367-50278-22": "PCSWiFi4Every1",
-      "ACC-7071161-50554-7": "WirelessLink",
-      "ACC-DF-8910267-22774-3": "Comnet",
-      "ACC-DF-8944908-16857-17": "CMC Network",
-      "ACC-DF-8914998-17079-20": "KakumaVentures",
-      "ACC-DF-9012567-86171-1": "Yuno Network",
-      "ACC-DF-9012430-88305-91": "Eritel",
-      "ACC-DF-9012511-23590-86": "Globe",
-      "ACC-7580055-64428-19": "ISOC Resilience",
-      // 'ACC-7580055-64428-19': 'Unconnected Partner 3',
-      "ACC-7393314-12390-10": "TESTER API ACCOUNT",
-    };
-    // Rename accounts based on mapping
-    data.content.results = data.content.results.map((account) => {
-      if (accountRenames[account.accountNumber]) {
-        return {
-          ...account,
-          regionCode: accountRenames[account.accountNumber],
-        };
-      }
-      return account;
-    });
+//     // account number to rename mapping
+//     const accountRenames = {
+//       "ACC-6814367-50278-22": "PCSWiFi4Every1",
+//       "ACC-7071161-50554-7": "WirelessLink",
+//       "ACC-DF-8910267-22774-3": "Comnet",
+//       "ACC-DF-8944908-16857-17": "CMC Network",
+//       "ACC-DF-8914998-17079-20": "KakumaVentures",
+//       "ACC-DF-9012567-86171-1": "Yuno Network",
+//       "ACC-DF-9012430-88305-91": "Eritel",
+//       "ACC-DF-9012511-23590-86": "Globe",
+//       "ACC-7580055-64428-19": "ISOC Resilience",
+//       // 'ACC-7580055-64428-19': 'Unconnected Partner 3',
+//       "ACC-7393314-12390-10": "TESTER API ACCOUNT",
+//     };
+//     // Rename accounts based on mapping
+//     data.content.results = data.content.results.map((account) => {
+//       if (accountRenames[account.accountNumber]) {
+//         return {
+//           ...account,
+//           regionCode: accountRenames[account.accountNumber],
+//         };
+//       }
+//       return account;
+//     });
 
-    // Sort the results alphabetically by the regionCode
-    data.content.results.sort((a, b) => {
-      return a.regionCode.localeCompare(b.regionCode);
-    });
+//     // Sort the results alphabetically by the regionCode
+//     data.content.results.sort((a, b) => {
+//       return a.regionCode.localeCompare(b.regionCode);
+//     });
 
-    res.json(data);
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res
-      .status(err.response?.status || 500)
-      .json({ error: err.response?.data || "Could not fetch accounts" });
-  }
-});
+//     res.json(data);
+//   } catch (err) {
+//     console.error(err.response?.data || err.message);
+//     res
+//       .status(err.response?.status || 500)
+//       .json({ error: err.response?.data || "Could not fetch accounts" });
+//   }
+// });
 
+// app.get("/api/accounts", (req, res) => {
+//   try {
+//     // Debug logs – very useful right now
+//     console.log("[/api/accounts] Loaded raw accounts from env:", 
+//       Object.keys(accountsMap || {}));
+    
+//     if (!accountsMap || Object.keys(accountsMap).length === 0) {
+//       console.warn("[/api/accounts] No accounts configured – check .env STARLINK_V2_ACCOUNTS");
+//       return res.json({  success: true,
+//         content: { results: [] },
+//         message: "No partner accounts configured in .env (STARLINK_V2_ACCOUNTS)" });
+//     }
+
+//     // Accounts to completely hide (add/remove as needed)
+//     const unwanted = new Set([
+//       "ACC-3196223-39704-14",
+//       "ACC-2959688-22725-30",
+//       "ACC-8653096-80387-28",
+//       "ACC-2963072-59271-18",
+//       "ACC-2866843-91611-20",
+//       "ACC-DF-9022857-69501-2",
+//       "ACC-DF-8914998-17079-20",
+//       // Keep ones you want visible, e.g. don't add "ACC-DF-9012430-88305-91" if you want Eritel
+//     ]);
+
+//     // Friendly names + region codes (your source of truth for dropdown display)
+//     // Update this object whenever you add a new account to .env
+//     const partners = {
+//       "ACC-6814367-50278-22": { accountName: "PCSWiFi4Every1", regionCode: "PH" },
+//       "ACC-7071161-50554-7":  { accountName: "WirelessLink",   regionCode: "PH" },
+//       "ACC-DF-9012567-86171-1": { accountName: "Yuno Network", regionCode: "PH" },
+//       "ACC-DF-9012511-23590-86": { accountName: "Globe",       regionCode: "PH" },
+//       "ACC-7580055-64428-19": { accountName: "ISOC Resilience", regionCode: "PH" },
+//       "ACC-7393314-12390-10": { accountName: "TESTER API ACCOUNT", regionCode: "NG" },
+//       "ACC-DF-9012430-88305-91": { accountName: "Eritel",      regionCode: "NG" },
+//       "ACC-DF-8910267-22774-3": { accountName: "Comnet",       regionCode: "MX" },
+//       "ACC-DF-8944908-16857-17": { accountName: "CMC Network", regionCode: "MX" },
+//       // "ACC-DF-8914998-17079-20": { accountName: "KakumaVentures", regionCode: "KE" },
+//       // ↑ Add new entries here as you onboard more partners
+//     };
+
+//     const results = [];
+
+//     for (const accNumber of Object.keys(accountsMap)) {
+//       if (unwanted.has(accNumber)) continue;
+
+//       const info = partners[accNumber] || {
+//         accountName: accNumber,   // fallback: show raw ID if not mapped yet
+//         regionCode: "??"
+//       };
+
+//       results.push({
+//         accountNumber: accNumber,
+//         regionCode: info.regionCode,
+//         accountName: info.accountName
+//       });
+//     }
+
+//     // Sort alphabetically by the name that appears in dropdown
+//     results.sort((a, b) => a.accountName.localeCompare(b.accountName));
+
+//     console.log("[/api/accounts] Sending", results.length, "partners to frontend");
+
+//     res.json({
+//       success: true,
+//       content: {
+//         results
+//       }
+//     });
+//   } catch (err) {
+//    console.error("[/api/accounts] Error:", err.message, err.stack);
+//     res.status(500).json({
+//       success: false,
+//       error: "Could not load partner accounts",
+//       details: err.message
+//     });
+//   }
+// });
 /**
  * @swagger
  * /api/v2/account:
@@ -1989,45 +2067,230 @@ app.get("/api/v2/accounts/:account/servicelines", async (req, res) => {
       .json({ error: err.response?.data || err.message });
   }
 });
+// app.get("/api/v2/accounts/list", (req, res) => {
+//   try {
+//     // This is the full list of accounts from your .env file (the source of truth)
+//    const accountKeys = Object.keys(accountsMap || {});
+//     const partnersInfo = {
+//       "ACC-6814367-50278-22": { regionCode: "PH", displayName: "PCSWiFi4Every1" },
+//       "ACC-7580055-64428-19": { regionCode: "PH", displayName: "ISOC Resilience" },
+//       "ACC-7071161-50554-7": { regionCode: "PH", displayName: "WirelessLink" },
+//       "ACC-DF-9012567-86171-1": { regionCode: "PH", displayName: "Yuno Network" },
+//       "ACC-DF-9012511-23590-86": { regionCode: "PH", displayName: "Globe" },
+//       "ACC-7393314-12390-10": { regionCode: "NG", displayName: "TESTER API ACCOUNT" },
+//       "ACC-DF-9012430-88305-91": { regionCode: "NG", displayName: "Eritel" },
+//       "ACC-DF-8910267-22774-3": { regionCode: "MX", displayName: "Comnet" },
+//       "ACC-DF-8944908-16857-17": { regionCode: "MX", displayName: "CMC Network" },
+//       "ACC-DF-8914998-17079-20": { regionCode: "KE", displayName: "KakumaVentures" },
+//       // add remaining accounts...
+//     };
+//    const results = accountKeys.map(key => {
+//       const info = partnersInfo[key] || { regionCode: "??",
+//         displayName: key };
+//       return {
+//         accountNumber: key,
+//         regionCode: info.regionCode,
+//         accountName: info.displayName,
+//       };
+//     });
+//     res.json({
+//       success: true,
+//       data: {
+//         content: {
+//           results: results
+         
+        
+//         }
+//       }
+//     });
+//   } catch (err) {
+//     res.status(500).json({ error: "Failed to list accounts" });
+//   }
+// });
+// (c) create service line
+// app.get("/api/v2/accounts/list", (req, res) => {
+//   try {
+//     console.log("[/api/v2/accounts/list] === START ===");
+//     console.log("accountsMap keys:", Object.keys(accountsMap || {}));
+
+//     if (!accountsMap || Object.keys(accountsMap).length === 0) {
+//       return res.json({
+//         success: true,
+//         content: { results: [] },
+//         message: "No v2 accounts in .env"
+//       });
+//     }
+
+//     const unwanted = new Set([
+//       "ACC-3196223-39704-14",
+//       "ACC-2959688-22725-30",
+//       "ACC-8653096-80387-28",
+//       "ACC-2963072-59271-18",
+//       "ACC-2866843-91611-20",
+//       "ACC-DF-9022857-69501-2",
+//       "ACC-DF-8914998-17079-20",
+//     ]);
+
+//     // Friendly names (keep these)
+//     const partners = {
+//       "ACC-6814367-50278-22": { accountName: "PCSWiFi4Every1", regionCode: "PH" },
+//       "ACC-7580055-64428-19": { accountName: "ISOC Resilience", regionCode: "PH" },
+//       "ACC-7071161-50554-7":  { accountName: "WirelessLink", regionCode: "PH" },
+//       "ACC-DF-9012567-86171-1": { accountName: "Yuno Network", regionCode: "PH" },
+//       "ACC-DF-9012511-23590-86": { accountName: "Globe", regionCode: "PH" },
+//       "ACC-7393314-12390-10": { accountName: "TESTER API ACCOUNT", regionCode: "NG" },
+//       "ACC-DF-9012430-88305-91": { accountName: "Eritel", regionCode: "NG" },
+//       "ACC-DF-8910267-22774-3": { accountName: "Comnet", regionCode: "MX" },
+//       "ACC-DF-8944908-16857-17": { accountName: "CMC Network", regionCode: "MX" },
+//     };
+
+//     // Simple region guesser — expand this as you learn more patterns
+//     function guessRegionCode(acc) {
+//       if (acc.includes("7393314") || acc.includes("9012430") || acc.includes("4635460")) return "NG";
+//       if (acc.includes("6814367") || acc.includes("7071161") || acc.includes("9012567") || acc.includes("9012511")) return "PH";
+//       if (acc.includes("8910267") || acc.includes("8944908")) return "MX";
+//       if (acc.includes("3853061")) return "CO";     // Colombia
+//       if (acc.includes("4375925")) return "MW";     // Malawi (your example)
+//       // Add more patterns here when you see new accounts
+//       return "??";
+//     }
+
+//     const unique = new Map();
+
+//     Object.keys(accountsMap).forEach(acc => {
+//       if (unwanted.has(acc)) return;
+
+//       const entry = partners[acc];
+
+//       if (entry) {
+//         unique.set(acc, {
+//           accountNumber: acc,
+//           regionCode: entry.regionCode,
+//           accountName: entry.accountName
+//         });
+//       } else {
+//         const region = guessRegionCode(acc);
+//         unique.set(acc, {
+//           accountNumber: acc,
+//           regionCode: region,
+//           accountName: region  // ← this is the key line: use code as name
+//         });
+
+//         console.log(`[Unmapped → code] ${acc} → accountName set to "${region}"`);
+//       }
+//     });
+
+//     const results = Array.from(unique.values()).sort((a, b) =>
+//       a.accountName.localeCompare(b.accountName)
+//     );
+
+//     console.log(`Returning ${results.length} accounts`);
+
+//     res.json({
+//       success: true,
+//       content: {
+//         results
+//       }
+//     });
+
+//   } catch (err) {
+//     console.error("[/api/v2/accounts/list] ERROR:", err);
+//     res.status(500).json({ success: false, error: "Failed to list accounts" });
+//   }
+// });
+
 app.get("/api/v2/accounts/list", (req, res) => {
   try {
-    // This is the full list of accounts from your .env file (the source of truth)
-   const accountKeys = Object.keys(accountsMap || {});
-    const partnersInfo = {
-      "ACC-6814367-50278-22": { regionCode: "PH", displayName: "PCSWiFi4Every1" },
-      "ACC-7580055-64428-19": { regionCode: "PH", displayName: "ISOC Resilience" },
-      "ACC-7071161-50554-7": { regionCode: "PH", displayName: "WirelessLink" },
-      "ACC-DF-9012567-86171-1": { regionCode: "PH", displayName: "Yuno Network" },
-      "ACC-DF-9012511-23590-86": { regionCode: "PH", displayName: "Globe" },
-      "ACC-7393314-12390-10": { regionCode: "NG", displayName: "TESTER API ACCOUNT" },
-      "ACC-DF-9012430-88305-91": { regionCode: "NG", displayName: "Eritel" },
-      "ACC-DF-8910267-22774-3": { regionCode: "MX", displayName: "Comnet" },
-      "ACC-DF-8944908-16857-17": { regionCode: "MX", displayName: "CMC Network" },
-      "ACC-DF-8914998-17079-20": { regionCode: "KE", displayName: "KakumaVentures" },
-      // add remaining accounts...
+    console.log("[/api/v2/accounts/list] === START ===");
+    console.log("accountsMap keys:", Object.keys(accountsMap || {}));
+
+    if (!accountsMap || Object.keys(accountsMap).length === 0) {
+      return res.json({
+        success: true,
+        content: { results: [] },
+        message: "No v2 accounts in .env"
+      });
+    }
+
+    const unwanted = new Set([
+      "ACC-3196223-39704-14",
+      "ACC-2959688-22725-30",
+      "ACC-8653096-80387-28",
+      "ACC-2963072-59271-18",
+      "ACC-2866843-91611-20",
+      "ACC-DF-9022857-69501-2",
+      "ACC-DF-8914998-17079-20",
+    ]);
+
+    // Friendly names (keep these)
+    const partners = {
+      "ACC-6814367-50278-22": { accountName: "PCSWiFi4Every1", regionCode: "PH" },
+      "ACC-7580055-64428-19": { accountName: "ISOC Resilience", regionCode: "PH" },
+      "ACC-7071161-50554-7":  { accountName: "WirelessLink", regionCode: "PH" },
+      "ACC-DF-9012567-86171-1": { accountName: "Yuno Network", regionCode: "PH" },
+      "ACC-DF-9012511-23590-86": { accountName: "Globe", regionCode: "PH" },
+      "ACC-7393314-12390-10": { accountName: "TESTER API ACCOUNT", regionCode: "NG" },
+      "ACC-DF-9012430-88305-91": { accountName: "Eritel", regionCode: "NG" },
+      "ACC-DF-8910267-22774-3": { accountName: "Comnet", regionCode: "MX" },
+      "ACC-DF-8944908-16857-17": { accountName: "CMC Network", regionCode: "MX" },
     };
-   const results = accountKeys.map(key => {
-      const info = partnersInfo[key] || { regionCode: "??",
-        displayName: key };
-      return {
-        accountNumber: key,
-        regionCode: info.regionCode,
-        accountName: info.displayName,
-      };
-    });
-    res.json({
-      success: true,
-      data: {
-        content: {
-          results: results
-        }
+
+    // Simple region guesser — expanded to cover all your .env accounts
+    function guessRegionCode(acc) {
+      if (acc.includes("7393314") || acc.includes("9012430") || acc.includes("4635460")) return "NG";
+      if (acc.includes("6814367") || acc.includes("7071161") || acc.includes("9012567") || acc.includes("9012511") || acc.includes("7580055")) return "PH";
+      if (acc.includes("8910267") || acc.includes("8944908")) return "MX";
+      if (acc.includes("3853061")) return "CO";     // Colombia
+      if (acc.includes("4375925") || acc.includes("4375960")) return "MW";     // Malawi (expanded)
+      if (acc.includes("4628113")) return "??";
+      if (acc.includes("5217980")) return "??";
+      // Add more patterns here when you see new accounts
+      return "??";
+    }
+
+    const unique = new Map();
+
+    Object.keys(accountsMap).forEach(acc => {
+      if (unwanted.has(acc)) return;
+
+      const entry = partners[acc];
+
+      if (entry) {
+        unique.set(acc, {
+          accountNumber: acc,
+          regionCode: entry.regionCode,
+          accountName: entry.accountName
+        });
+        console.log(`[Mapped] ${acc} → "${entry.accountName}"`);
+      } else {
+        const region = guessRegionCode(acc);
+        unique.set(acc, {
+          accountNumber: acc,
+          regionCode: region,
+          accountName: region  // Use country code as name
+        });
+        console.log(`[Unmapped] ${acc} → "${region}"`);
       }
     });
+
+    const results = Array.from(unique.values()).sort((a, b) =>
+      a.accountName.localeCompare(b.accountName)
+    );
+
+    console.log(`Returning ${results.length} accounts`);
+
+    res.json({
+      success: true,
+      content: {
+        results
+      }
+    });
+
   } catch (err) {
-    res.status(500).json({ error: "Failed to list accounts" });
+    console.error("[/api/v2/accounts/list] ERROR:", err);
+    res.status(500).json({ success: false, error: "Failed to list accounts" });
   }
 });
-// (c) create service line
 /**
  * @swagger
  * /api/accounts/{account}/service-lines:
