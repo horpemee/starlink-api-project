@@ -1422,6 +1422,7 @@ app.get("/api/accounts", async (req, res) => {
     const unwantedAccounts = [
       "ACC-3196223-39704-14",
       "ACC-2959688-22725-30",
+      "ACC-DF-11546608-43928-53",
       "ACC-8653096-80387-28",
       "ACC-2963072-59271-18",
       "ACC-2866843-91611-20",
