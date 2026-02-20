@@ -1421,6 +1421,7 @@ app.get("/api/accounts", async (req, res) => {
     const data = await makeAuthedGet(`/v1/accounts?limit=50&page=0`);
     const unwantedAccounts = [
       "ACC-3196223-39704-14",
+      "ACC-7580055-64428-19",
       "ACC-2959688-22725-30",
       "ACC-DF-11546608-43928-53",
       "ACC-8653096-80387-28",
