@@ -2033,6 +2033,7 @@ app.post("/api/notifications/activation", async (req, res) => {
       apiSecret: process.env.MJ_APIKEY_PRIVATE,
     });
 
+  
     const request = await mailjet.post("send", { version: "v3.1" }).request({
       Messages: [
         {
@@ -2045,6 +2046,10 @@ app.post("/api/notifications/activation", async (req, res) => {
               Email: "support@unconnected.org",
               Name: "Unconnected.Org",
             },
+            {
+            Email: contactEmail,
+            Name: companyName || "Partner",
+          },
           ],
           Subject: `New Starlink Activation - ${kitNumber}`,
           HTMLPart: htmlTemplate,
