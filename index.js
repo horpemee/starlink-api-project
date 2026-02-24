@@ -2187,6 +2187,58 @@ app.get("/api/accounts/:account/validate-kit/:kitNumber", async (req, res) => {
     });
   }
 });
+
+/**
+ * @route GET /api/usage/:accountNumber/:kitNumber
+ * @desc Fetches usage for a specific kit within a specific account
+ */
+app.get("/api/usage/:accountNumber/:kitNumber", async (req, res) => {
+  try {
+    const { accountNumber, kitNumber } = req.params;
+
+    // Use your existing helper to get data from the specific account selected
+    const usageData = await makeAuthedGet(`/v1/accounts/${accountNumber}/data-usage`);
+
+    if (!usageData || !usageData.content) {
+      return res.status(404).json({ error: "No data found for this account." });
+    }
+
+    // Find the terminal within that specific account's list
+    // We check terminalId and use toUpperCase to ensure it matches regardless of typing
+    const terminal = usageData.content.find((t) =>
+      t.terminalId.toUpperCase().includes(kitNumber.toUpperCase())
+    );
+
+    if (!terminal) {
+      return res.status(404).json({ 
+        error: `Kit ${kitNumber} not found in account ${accountNumber}.` 
+      });
+    }
+
+    // Standard 5TB (5000GB) calculation
+    const limitGb = 5000;
+    const currentGb = terminal.curPeriodUsageGb || 0;
+
+    res.json({
+      success: true,
+      data: {
+        terminalId: terminal.terminalId,
+        usageGb: currentGb.toFixed(2),
+        usageTb: (currentGb / 1000).toFixed(2),
+        remainingTb: ((limitGb - currentGb) / 1000).toFixed(2),
+        percentage: ((currentGb / limitGb) * 100).toFixed(1),
+        cycleEnd: terminal.billingCycleEndDate,
+        accountNumber: accountNumber
+      }
+    });
+
+  } catch (error) {
+    console.error("Usage fetch error:", error);
+    res.status(500).json({ error: "Failed to connect to Starlink API." });
+  }
+});
+
+
 app.get("/", async (req, res) => {
   res.send({ message: "Starlink Activation Server is running 🚀" });
 });
