@@ -1423,7 +1423,7 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-3196223-39704-14",
       "ACC-7580055-64428-19",
       "ACC-2959688-22725-30",
-      "ACC-DF-11546608-43928-53",
+     
       "ACC-8653096-80387-28",
       "ACC-2963072-59271-18",
       "ACC-2866843-91611-20",
@@ -1457,6 +1457,7 @@ app.get("/api/accounts", async (req, res) => {
       "ACC-DF-8914998-17079-20": "KakumaVentures",
       "ACC-DF-9012567-86171-1": "Yuno Network",
       "ACC-DF-9012430-88305-91": "Eritel",
+       "ACC-DF-11546608-43928-53": "Netair",
       "ACC-DF-9012511-23590-86": "Globe",
    
       "ACC-7580055-64428-19": "ISOC Resilience",
