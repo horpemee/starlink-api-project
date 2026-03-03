@@ -118,7 +118,7 @@ const swaggerSpec = swaggerJsdoc({
     // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
     servers: [
       { url: "http://localhost:3000" },
-      { url: "https://api.unconnected.support/api/v2" },
+      { url: "https://api.unconnected.support" },
     ],
   },
   // Scan this file for JSDoc @swagger blocks
@@ -793,7 +793,7 @@ app.post(
 
         // Bulk Email Notification (summary)
         const baseUrl =
-          process.env.API_BASE_URL || "https://api.unconnected.support/api/v2";
+          process.env.API_BASE_URL || "https://api.unconnected.support";
         const summary = csvData
           .map((r) => {
             const photos = photoMap[r.kitNumber.toUpperCase()] || [];
