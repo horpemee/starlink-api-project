@@ -26,9 +26,9 @@ const mailjet = new Mailjet({
   apiSecret: process.env.MJ_APIKEY_PRIVATE,
 });
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
+// const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
 
-// const FRONTEND_URL = process.env.FRONTEND_URL || "https://unconnected.support";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://unconnected.support";
 
 app.use(
   cors({
@@ -115,11 +115,11 @@ const swaggerSpec = swaggerJsdoc({
       description:
         "Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.",
     },
-    servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
-    // servers: [
-    //   { url: "http://localhost:3000" },
-    //   { url: "https://api.unconnected.support/" },
-    // ],
+    // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+    servers: [
+      { url: "http://localhost:3000" },
+      { url: "https://api.unconnected.support/" },
+    ],
   },
   // Scan this file for JSDoc @swagger blocks
   apis: [path.join(__dirname, "index.js")],
@@ -2199,6 +2199,14 @@ app.get("/api/v2/accounts/:account/servicelines", async (req, res) => {
 //   }
 // });
 
+// Helper to get country name from ISO code
+/**
+ * Helper to get country name from ISO code
+ */
+// Add this at the top of your file to convert "PH" to "Philippines", etc.
+
+ 
+
 app.get("/api/v2/accounts/list", (req, res) => {
   try {
     console.log("[/api/v2/accounts/list] === START ===");
@@ -2220,19 +2228,44 @@ app.get("/api/v2/accounts/list", (req, res) => {
       "ACC-2866843-91611-20",
       "ACC-DF-9022857-69501-2",
       "ACC-DF-8914998-17079-20",
+      "ACC-7393314-12390-10",
+      "ACC-7580055-64428-19",
+      "ACC-DF-11401483-98894-56",
+      "ACC-DF-11433246-89702-46",
+      "ACC-DF-11431182-30821-31",
+      "ACC-DF-11431691-60610-35",
+      // "ACC-7393314-12390-10",
+      "ACC-DF-11432039-94149-46",
+      "ACC-DF-11433063-50391-35",
+      "ACC-DF-11432570-16370-36",
+      "ACC-DF-11432918-24848-51",
+      "ACC-DF-11430400-21262-22",
+      "ACC-DF-11432762-22544-39",
+      "ACC-DF-11432278-73944-51",
+       
     ]);
 
     // Friendly names (keep these)
     const partners = {
       "ACC-6814367-50278-22": { accountName: "PCSWiFi4Every1", regionCode: "PH" },
+      "ACC-DF-11546608-43928-53": { accountName: "Netair", regionCode: "PH" },
       "ACC-7580055-64428-19": { accountName: "ISOC Resilience", regionCode: "PH" },
       "ACC-7071161-50554-7":  { accountName: "WirelessLink", regionCode: "PH" },
       "ACC-DF-9012567-86171-1": { accountName: "Yuno Network", regionCode: "PH" },
       "ACC-DF-9012511-23590-86": { accountName: "Globe", regionCode: "PH" },
-      "ACC-7393314-12390-10": { accountName: "TESTER API ACCOUNT", regionCode: "NG" },
+      // "ACC-7393314-12390-10": { accountName: "TESTER API ACCOUNT", regionCode: "NG" },
       "ACC-DF-9012430-88305-91": { accountName: "Eritel", regionCode: "NG" },
       "ACC-DF-8910267-22774-3": { accountName: "Comnet", regionCode: "MX" },
       "ACC-DF-8944908-16857-17": { accountName: "CMC Network", regionCode: "MX" },
+      "ACC-4635460-74859-26": { accountName: "Nigeria", regionCode: "NG" },
+      "ACC-4375960-84365-25": { accountName: "Philippines", regionCode: "PH" },
+      "ACC-4375925-26836-25": { accountName: "Malawi", regionCode: "MW" },
+      "ACC-5217980-16418-17": { accountName: "Mexico", regionCode: "MX" },
+      "ACC-4628113-85562-16": { accountName: "Kenya", regionCode: "KE" },
+      "ACC-3853061-62888-23": { accountName: "Colombia", regionCode: "CO" }
+   
+
+      
     };
 
     // Simple region guesser — expanded to cover all your .env accounts
@@ -2291,6 +2324,8 @@ app.get("/api/v2/accounts/list", (req, res) => {
     res.status(500).json({ success: false, error: "Failed to list accounts" });
   }
 });
+
+
 /**
  * @swagger
  * /api/accounts/{account}/service-lines:
@@ -2705,6 +2740,11 @@ app.post("/api/v2/notifications/activation", async (req, res) => {
               Email: "support@unconnected.org",
               Name: "Unconnected.Org",
             },
+             {
+              Email: contactEmail,
+              Name: companyName,
+            },
+
           ],
           Subject: `New Starlink Activation - ${kitNumber}`,
           HTMLPart: htmlTemplate,
@@ -3007,6 +3047,59 @@ app.post("/api/v2/test/kit-validation", async (req, res) => {
       error: "Test failed",
       message: error.message,
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+});
+
+
+/**
+ * @swagger
+ * /api/v2/data-usage/query:
+ *   post:
+ *     summary: Query data usage for specific kits/terminals
+ *     description: Proxies to Starlink's /public/v2/data-usage/query with auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               accountId:
+ *                 type: string
+ *               userTerminalIds:
+ *                 type: array
+ *                 items: string
+ *               start:
+ *                 type: string  # YYYY-MM-DD
+ *               end:
+ *                 type: string  # YYYY-MM-DD
+ *     responses:
+ *       200:
+ *         description: Data usage metrics
+ */
+app.post("/api/v2/data-usage/query", async (req, res) => {
+  try {
+    const { accountId, ...body } = req.body;  // accountId optional for multi-account
+    const accountKey = accountId || "__default__";  // Use accountId as key if provided
+    const token = await getV2Token(accountKey);  // Use per-account token cache
+
+    const starlinkResponse = await axios.post(
+      `${STARLINK_BASE_URL_V2}/data-usage/query`,
+      body,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    res.json(starlinkResponse.data);
+  } catch (error) {
+    console.error("Data usage query failed:", error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({
+      error: error.response?.data?.message || "Failed to query data usage",
     });
   }
 });
