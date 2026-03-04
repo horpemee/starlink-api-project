@@ -114,7 +114,7 @@ const swaggerSpec = swaggerJsdoc({
     // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
     servers: [
       { url: "http://localhost:3000" },
-      { url: "https://api.unconnected.support/api/" },
+      { url: "https://api.unconnected.support/" },
     ],
   },
   // Scan this file for JSDoc @swagger blocks
