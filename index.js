@@ -98,10 +98,6 @@ const mapkey = process.env.GOOGLE_MAP_KEY;
 // Optional override for Starlink v2 API base; falls back to v1 base if not set
 const STARLINK_BASE_URL_V2 =
   process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public";
-// Optional default v2 credentials (used only if no per-account entry is found)
-// const V2_DEFAULT_CLIENT_ID = process.env.V2_CLIENT_ID;
-// const V2_DEFAULT_CLIENT_SECRET = process.env.V2_CLIENT_SECRET;
-// const V2_CREDENTIALS_JSON = process.env.STARLINK_V2_CREDENTIALS || "{}";
  
 
 const MockAPI = require("./mocks/mock");
@@ -118,7 +114,7 @@ const swaggerSpec = swaggerJsdoc({
     // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
     servers: [
       { url: "http://localhost:3000" },
-      { url: "https://api.unconnected.support" },
+      { url: "https://api.unconnected.support/api/v2" },
     ],
   },
   // Scan this file for JSDoc @swagger blocks
