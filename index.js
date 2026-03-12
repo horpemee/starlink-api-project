@@ -94,11 +94,80 @@ function getV2Credentials(accountKey) {
   };
 }
 
+// Helper to generate Basic Auth header for any account
+// Helper to generate Authorization header (Basic Auth using client_id:client_secret)
+// ────────────────────────────────────────────────
+// Fetch Bearer token using client credentials (OAuth2)
+// ────────────────────────────────────────────────
+async function getStarlinkBearerToken(accountKey = "__default__") {
+  // Check cache first
+  const cached = v2TokenCache.get(accountKey);
+  if (cached && cached.exp > Date.now()) {
+    console.log(`[TOKEN] Reusing cached token for ${accountKey}`);
+    return cached.token;
+  }
+
+  console.log(`[TOKEN] Fetching fresh token for ${accountKey}`);
+
+  let creds;
+  try {
+    creds = getV2Credentials(accountKey);
+  } catch (err) {
+    console.error("[TOKEN] Credentials error:", err.message);
+    throw err;
+  }
+
+  try {
+    // Starlink client credentials token endpoint (try this first)
+    const tokenUrl = "https://starlink.com/api/auth/connect/token";
+
+    const tokenResponse = await axios.post(
+      tokenUrl,
+      new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret
+      }).toString(),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        timeout: 15000
+      }
+    );
+
+    const { access_token, expires_in } = tokenResponse.data;
+
+    if (!access_token) {
+      throw new Error("No access_token in response");
+    }
+
+    const expiresAt = Date.now() + (expires_in * 1000) - 300000; // 5 min buffer
+
+    v2TokenCache.set(accountKey, {
+      token: access_token,
+      exp: expiresAt
+    });
+
+    console.log(`[TOKEN] Success - token cached for ${accountKey} (expires in ${expires_in}s)`);
+    return access_token;
+
+  } catch (err) {
+    console.error("[TOKEN] Fetch failed:", {
+      status: err.response?.status,
+      data: err.response?.data,
+      message: err.message
+    });
+    throw new Error(`Token fetch failed: ${err.message}`);
+  }
+}
+
+
 const mapkey = process.env.GOOGLE_MAP_KEY;
 // Optional override for Starlink v2 API base; falls back to v1 base if not set
 const STARLINK_BASE_URL_V2 =
-  process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public";
- 
+  process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public/v2";
+//  const STARLINK_BASE_URL_V2 = "https://starlink.com/api/public/v2";
 
 const MockAPI = require("./mocks/mock");
 
@@ -2235,7 +2304,7 @@ app.get("/api/v2/accounts/list", (req, res) => {
       "ACC-DF-11433063-50391-35",
       "ACC-DF-11432570-16370-36",
       "ACC-DF-11432918-24848-51",
-      "ACC-DF-11430400-21262-22",
+      
       "ACC-DF-11432762-22544-39",
       "ACC-DF-11432278-73944-51",
        
@@ -2253,6 +2322,7 @@ app.get("/api/v2/accounts/list", (req, res) => {
       "ACC-DF-9012430-88305-91": { accountName: "Eritel", regionCode: "NG" },
       "ACC-DF-8910267-22774-3": { accountName: "Comnet", regionCode: "MX" },
       "ACC-DF-8944908-16857-17": { accountName: "CMC Network", regionCode: "MX" },
+      "ACC-DF-11430400-21262-22": { accountName: "Queretaro and Yucatan Schools", regionCode: "MX" },
       "ACC-4635460-74859-26": { accountName: "Nigeria", regionCode: "NG" },
       "ACC-4375960-84365-25": { accountName: "Philippines", regionCode: "PH" },
       "ACC-4375925-26836-25": { accountName: "Malawi", regionCode: "MW" },
@@ -3074,28 +3144,145 @@ app.post("/api/v2/test/kit-validation", async (req, res) => {
  *       200:
  *         description: Data usage metrics
  */
+ 
+
+// ────────────────────────────────────────────────
+// CORRECT USER TERMINALS ENDPOINT (top-level, uses query params)
+// ────────────────────────────────────────────────
+// app.get("/api/v2/user-terminals", async (req, res) => {
+//   const { accountId, searchString } = req.query;
+
+//   console.log(`[USER-TERMINALS] Request - account: ${accountId || 'none'}, search: ${searchString || 'none'}`);
+
+//   try {
+//     const authHeader = getStarlinkAuthHeader(accountId || "__default__");
+
+//     const params = new URLSearchParams();
+//     if (accountId) params.append("accountId", accountId);
+//     if (searchString) params.append("searchString", searchString);
+//     params.append("limit", "100");
+
+//     const url = `${STARLINK_BASE_URL_V2}/user-terminals?${params.toString()}`;
+
+//     console.log(`[USER-TERMINALS] Calling Starlink: ${url}`);
+
+//     const response = await axios.get(url, {
+//       headers: {
+//         Authorization: authHeader,
+//         Accept: "application/json",
+//       },
+//       timeout: 15000,
+//     });
+
+//     console.log(`[USER-TERMINALS] Success - ${response.data?.content?.results?.length || 0} terminals`);
+
+//     res.json(response.data);
+//   } catch (error) {
+//     console.error("[USER-TERMINALS] Error:", {
+//       status: error.response?.status,
+//       data: error.response?.data,
+//       message: error.message,
+//     });
+
+//     res.status(error.response?.status || 500).json({
+//       error: "Failed to fetch terminals",
+//       details: error.message,
+//       statusCode: error.response?.status,
+//     });
+//   }
+// });
+
+app.get("/api/v2/user-terminals", async (req, res) => {
+  const { accountId, searchString } = req.query;
+
+  console.log(`[USER-TERMINALS] Request - account: ${accountId || 'none'}, search: ${searchString || 'none'}`);
+
+  try {
+    const token = await getStarlinkBearerToken(accountId || "__default__");
+
+    const params = new URLSearchParams();
+    if (accountId) params.append("accountId", accountId);
+    if (searchString) params.append("searchString", searchString);
+    params.append("limit", "100");
+
+    const url = `${STARLINK_BASE_URL_V2}/user-terminals?${params.toString()}`;
+
+    console.log(`[USER-TERMINALS] Calling: ${url}`);
+
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      },
+      timeout: 15000
+    });
+
+    console.log(`[USER-TERMINALS] Success - ${response.data?.content?.results?.length || 0} terminals`);
+
+    res.json(response.data);
+  } catch (error) {
+    console.error("[USER-TERMINALS] Error:", error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({
+      error: "Failed to fetch terminals",
+      details: error.message,
+      starlinkError: error.response?.data
+    });
+  }
+});
+
+// Your existing data-usage route is already correct – just make sure base URL is updated
+// app.post("/api/v2/data-usage/query", async (req, res) => {
+//   try {
+//     const { accountId, ...body } = req.body;
+//     const accountKey = accountId || "__default__";
+
+//     const authHeader = getStarlinkAuthHeader(accountKey);
+
+//     const response = await axios.post(
+//       `${STARLINK_BASE_URL_V2}/data-usage/query`,
+//       body,
+//       {
+//         headers: {
+//           Authorization: authHeader,
+//           "Content-Type": "application/json",
+//         },
+//         timeout: 15000,
+//       }
+//     );
+
+//     res.json(response.data);
+//   } catch (error) {
+//     console.error("Data usage query failed:", error.response?.data || error.message);
+//     res.status(error.response?.status || 500).json({
+//       error: error.response?.data?.message || "Failed to query data usage",
+//     });
+//   }
+// });
+
 app.post("/api/v2/data-usage/query", async (req, res) => {
   try {
-    const { accountId, ...body } = req.body;  // accountId optional for multi-account
-    const accountKey = accountId || "__default__";  // Use accountId as key if provided
-    const token = await getV2Token(accountKey);  // Use per-account token cache
+    const { accountId, ...body } = req.body;
+    const accountKey = accountId || "__default__";
 
-    const starlinkResponse = await axios.post(
+    const token = await getStarlinkBearerToken(accountKey);
+
+    const response = await axios.post(
       `${STARLINK_BASE_URL_V2}/data-usage/query`,
       body,
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+          "Content-Type": "application/json"
         },
+        timeout: 15000
       }
     );
 
-    res.json(starlinkResponse.data);
+    res.json(response.data);
   } catch (error) {
-    console.error("Data usage query failed:", error.response?.data || error.message);
+    console.error("Data usage failed:", error.response?.data || error.message);
     res.status(error.response?.status || 500).json({
-      error: error.response?.data?.message || "Failed to query data usage",
+      error: error.response?.data?.message || "Failed to query data usage"
     });
   }
 });
