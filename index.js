@@ -2329,8 +2329,6 @@ app.get("/api/v2/accounts/list", (req, res) => {
       "ACC-5217980-16418-17": { accountName: "Mexico", regionCode: "MX" },
       "ACC-4628113-85562-16": { accountName: "Kenya", regionCode: "KE" },
       "ACC-3853061-62888-23": { accountName: "Colombia", regionCode: "CO" }
-   
-
       
     };
 
