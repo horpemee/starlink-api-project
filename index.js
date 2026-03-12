@@ -166,7 +166,7 @@ async function getStarlinkBearerToken(accountKey = "__default__") {
 const mapkey = process.env.GOOGLE_MAP_KEY;
 // Optional override for Starlink v2 API base; falls back to v1 base if not set
 const STARLINK_BASE_URL_V2 =
-  process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public/v2";
+  process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public";
 //  const STARLINK_BASE_URL_V2 = "https://starlink.com/api/public/v2";
 
 const MockAPI = require("./mocks/mock");
