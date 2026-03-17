@@ -3190,44 +3190,73 @@ app.post("/api/v2/test/kit-validation", async (req, res) => {
 //   }
 // });
 
+// app.get("/api/v2/user-terminals", async (req, res) => {
+//   const { accountId, searchString } = req.query;
+
+//   console.log(`[USER-TERMINALS] Request - account: ${accountId || 'none'}, search: ${searchString || 'none'}`);
+
+//   try {
+//     const token = await getStarlinkBearerToken(accountId || "__default__");
+
+//     const params = new URLSearchParams();
+//     if (accountId) params.append("accountId", accountId);
+//     if (searchString) params.append("searchString", searchString);
+//     params.append("limit", "100");
+
+//     const url = `${STARLINK_BASE_URL_V2}/user-terminals?${params.toString()}`;
+
+//     console.log(`[USER-TERMINALS] Calling: ${url}`);
+
+//     const response = await axios.get(url, {
+//       headers: {
+//         Authorization: `Bearer ${token}`,
+//         Accept: "application/json"
+//       },
+//       timeout: 15000
+//     });
+
+//     console.log(`[USER-TERMINALS] Success - ${response.data?.content?.results?.length || 0} terminals`);
+
+//     res.json(response.data);
+//   } catch (error) {
+//     console.error("[USER-TERMINALS] Error:", error.response?.data || error.message);
+//     res.status(error.response?.status || 500).json({
+//       error: "Failed to fetch terminals",
+//       details: error.message,
+//       starlinkError: error.response?.data
+//     });
+//   }
+// });
+// Route to fetch user terminals from Starlink API
 app.get("/api/v2/user-terminals", async (req, res) => {
-  const { accountId, searchString } = req.query;
-
-  console.log(`[USER-TERMINALS] Request - account: ${accountId || 'none'}, search: ${searchString || 'none'}`);
-
   try {
-    const token = await getStarlinkBearerToken(accountId || "__default__");
+    const { accountId, searchString, limit } = req.query;
+    const accountKey = accountId || "__default__";
 
-    const params = new URLSearchParams();
-    if (accountId) params.append("accountId", accountId);
-    if (searchString) params.append("searchString", searchString);
-    params.append("limit", "100");
+    // Get the OAuth2 Bearer token for the specific account
+    const token = await getStarlinkBearerToken(accountKey);
 
-    const url = `${STARLINK_BASE_URL_V2}/user-terminals?${params.toString()}`;
+    const response = await axios.get(
+      `${STARLINK_BASE_URL_V2}/user-terminals`,
+      {
+        params: { searchString, limit: limit || 100 },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        timeout: 15000
+      }
+    );
 
-    console.log(`[USER-TERMINALS] Calling: ${url}`);
-
-    const response = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json"
-      },
-      timeout: 15000
-    });
-
-    console.log(`[USER-TERMINALS] Success - ${response.data?.content?.results?.length || 0} terminals`);
-
+    // Return the Starlink API response to your frontend
     res.json(response.data);
   } catch (error) {
-    console.error("[USER-TERMINALS] Error:", error.response?.data || error.message);
+    console.error("Fetch terminals failed:", error.response?.data || error.message);
     res.status(error.response?.status || 500).json({
-      error: "Failed to fetch terminals",
-      details: error.message,
-      starlinkError: error.response?.data
+      error: error.response?.data?.message || "Failed to fetch terminals",
     });
   }
 });
-
 // Your existing data-usage route is already correct – just make sure base URL is updated
 // app.post("/api/v2/data-usage/query", async (req, res) => {
 //   try {
