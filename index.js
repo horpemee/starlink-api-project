@@ -3294,7 +3294,7 @@ app.post("/api/v2/data-usage/query", async (req, res) => {
     const token = await getStarlinkBearerToken(accountKey);
 
     const response = await axios.post(
-      `${STARLINK_BASE_URL_V2}/data-usage/query`,
+      `${STARLINK_BASE_URL_V2}/v2/data-usage/query`,
       body,
       {
         headers: {
