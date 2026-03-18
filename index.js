@@ -26,9 +26,9 @@ const mailjet = new Mailjet({
   apiSecret: process.env.MJ_APIKEY_PRIVATE,
 });
 
-// const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:8080";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://localhost:8080";
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://unconnected.support";
+// const FRONTEND_URL = process.env.FRONTEND_URL || "https://unconnected.support";
 
 app.use(
   cors({
@@ -166,7 +166,7 @@ async function getStarlinkBearerToken(accountKey = "__default__") {
 const mapkey = process.env.GOOGLE_MAP_KEY;
 // Optional override for Starlink v2 API base; falls back to v1 base if not set
 const STARLINK_BASE_URL_V2 =
-  process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public";
+  process.env.STARLINK_BASE_URL_V2 || "https://starlink.com/api/public/v2";
 //  const STARLINK_BASE_URL_V2 = "https://starlink.com/api/public/v2";
 
 const MockAPI = require("./mocks/mock");
@@ -180,11 +180,11 @@ const swaggerSpec = swaggerJsdoc({
       description:
         "Express wrapper around the Starlink Enterprise Activation API – docs generated from JSDoc.",
     },
-    // servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
-    servers: [
-      { url: "http://localhost:3000" },
-      { url: "https://api.unconnected.support/" },
-    ],
+    servers: [{ url: 'http://localhost:3000' }, { url: "https://starlink-api-project.onrender.com/" }]
+    // servers: [
+    //   { url: "http://localhost:3000" },
+    //   { url: "https://api.unconnected.support/" },
+    // ],
   },
   // Scan this file for JSDoc @swagger blocks
   apis: [path.join(__dirname, "index.js")],
