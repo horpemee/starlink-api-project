@@ -3237,7 +3237,7 @@ app.get("/api/v2/user-terminals", async (req, res) => {
     const token = await getStarlinkBearerToken(accountKey);
 
     const response = await axios.get(
-      `${STARLINK_BASE_URL_V2}/user-terminals`,
+      `${STARLINK_BASE_URL_V2}/v2/user-terminals`,
       {
         params: { accountId, searchString, limit: limit || 100 },
         headers: {
